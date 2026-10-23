@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { requireAdmin, hashPassword } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import type { FormState } from "@/components/ActionForm";
+import { abortRun } from "@/lib/engine/engine";
 
 const statsSchema = z.object({
   hp: z.coerce.number().int().min(0),
@@ -76,7 +77,7 @@ export async function forceEndRunAction(formData: FormData) {
   const runId = String(formData.get("runId") ?? "");
   const run = await db.run.findUnique({ where: { id: runId }, include: { character: true } });
   if (!run || run.status !== "ACTIVE") return;
-  await db.run.update({ where: { id: runId }, data: { status: "ABORTED", endedAt: new Date() } });
+  await abortRun(runId);
   await audit(admin.id, "run.forceEnd", { type: "run", id: runId }, { character: run.character.name });
   revalidatePath(`/admin/users/${run.characterId}`);
   revalidatePath("/admin");

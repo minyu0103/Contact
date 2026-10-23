@@ -389,6 +389,12 @@ model Run {
   reward          Int  @default(0)
   // 테스트 플레이: 판정 강제 (null | "SUCCESS" | "FAIL")
   forceResult     String?
+  // 테스트 플레이에서는 실제 캐릭터 대신 이 스냅샷의 수치를 쓴다
+  testState       Json?
+  // 직전 행동의 결과 (판정 결과 화면용). "계속"을 누르면 비운다
+  lastResult      Json?
+  // 런 종료 요약 (런 종료 화면용)
+  summary         Json?
 
   startedAt DateTime  @default(now())
   endedAt   DateTime?
