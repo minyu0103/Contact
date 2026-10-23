@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CONTACT — 근미래 어반 판타지 웹게임 (1차 프로토타입)
 
-## Getting Started
+세계관 속 "현실조작형 자동접촉 프로그램"을 그대로 화면으로 옮긴 웹 RPG입니다.
+구현 규칙은 `SPEC.md`, 세계관과 문구는 `GAME_DESIGN.md`를 따릅니다.
 
-First, run the development server:
+## 기술 스택
+
+- Next.js (App Router, TypeScript, Server Actions) + Tailwind CSS
+- Prisma + PostgreSQL (개발은 로컬 Postgres, 배포 시 Supabase Postgres 접속 문자열로 교체)
+- 자체 세션 쿠키 인증 (아이디 + 비밀번호, 초대 코드 필수)
+
+## 실행 방법
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+cp .env.example .env            # DATABASE_URL, SESSION_SECRET, ADMIN_* 확인
+scripts/local-db.sh start       # 로컬 Postgres (이미 Postgres가 있으면 생략)
+pnpm db:migrate                 # 스키마 적용
+pnpm db:seed                    # 관리자 계정, 기본 아이템 5종, 초대 코드 발급
+pnpm dev                        # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- 관리자 계정: `.env`의 `ADMIN_LOGIN_ID` / `ADMIN_PASSWORD` (기본 admin / admin1234)
+- 시드 초대 코드: `WELCOME-0001` ~ `WELCOME-0005`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 디렉터리
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| 경로 | 내용 |
+| --- | --- |
+| `prisma/schema.prisma` | 전체 데이터 모델 (2차 항목도 구조만 미리 포함) |
+| `prisma/seed.ts` | 초기 시드 |
+| `src/lib/game-config.ts` | 모든 "기본값" 수치 정의. 관리자 "게임 설정" 양식의 원본 |
+| `src/lib/rules.ts` | 침식률 단계, 배율, 페널티, 레벨업 등 규칙 계산 |
+| `src/lib/time.ts` | KST, 04:00 게임일 키, 다음 초기화 시각 |
+| `src/lib/auth.ts` | 세션, 로그인 확인 |
+| `src/lib/character.ts` | 일일 초기화(요청 시점에 늦게 적용) |
+| `src/app/(auth)` | 설치(가입), 접속(로그인) |
+| `src/app/create-character` | 유저 등록(캐릭터 생성, 능력 제출) |
+| `src/app/(game)` | 상태 표시줄이 있는 게임 화면들 |
 
-## Learn More
+## 단계별 진행
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. ✅ 골격, DB 스키마, 게임 설정, 초대 코드 가입·로그인, 캐릭터 생성, 홈
+2. 관리자 페이지 기본 메뉴
+3. 이계 편집기
+4. 탐사 엔진과 탐사 화면
+5. 지도, 보관함, 상점, 유저 화면, 탐사기록, 대시보드, 마감

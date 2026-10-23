@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# 업로드된 이미지 (프로토타입은 로컬 저장)
+/public/uploads/*
+!/public/uploads/.gitkeep
+
+!.env.example

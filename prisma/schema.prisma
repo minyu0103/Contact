@@ -1,0 +1,448 @@
+// 근미래 어반 판타지 웹게임 - 1차 프로토타입 데이터 모델
+// SPEC.md "데이터 모델 (초안)"을 바탕으로 한다. 2차 항목도 구조만 미리 둔다.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────── 계정 ─────────────────────────
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id           String      @id @default(cuid())
+  loginId      String      @unique
+  passwordHash String
+  role         Role        @default(USER)
+  createdAt    DateTime    @default(now())
+  inviteCode   InviteCode? @relation("UsedInvite")
+  character    Character?
+  sessions     Session[]
+  createdCodes InviteCode[] @relation("CreatedInvite")
+  notices      Notice[]
+  auditLogs    AuditLog[]
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model InviteCode {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  note        String    @default("")
+  createdById String?
+  createdBy   User?     @relation("CreatedInvite", fields: [createdById], references: [id], onDelete: SetNull)
+  usedById    String?   @unique
+  usedBy      User?     @relation("UsedInvite", fields: [usedById], references: [id], onDelete: SetNull)
+  usedAt      DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+// ───────────────────────── 캐릭터 ─────────────────────────
+
+enum AbilityCategory {
+  COMBAT      // 전투형
+  SEARCH      // 탐색형
+  PRODUCTION  // 생산형
+  SPECIAL     // 특수형
+}
+
+enum AbilityStatus {
+  PENDING   // 심사 중
+  ACTIVE    // 활성
+  RETURNED  // 반려 (코멘트와 함께 돌려보냄)
+}
+
+enum CheckType {
+  COMBAT   // 전투
+  SEARCH   // 탐색
+  CRAFT    // 제작 (2차)
+  GENERAL  // 일반
+}
+
+model Character {
+  id        String @id @default(cuid())
+  userId    String @unique
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String @unique
+  imageUrl  String?
+
+  // 능력
+  category             AbilityCategory
+  abilityName          String
+  abilityDesc          String
+  abilityStatus        AbilityStatus @default(PENDING)
+  abilityComment       String        @default("")
+  // 특수형은 운영자가 지정. 나머지는 카테고리로 자동 결정되므로 null.
+  proficiencyCheckType CheckType?
+  proficiency          Int           @default(1)
+  proficiencyExp       Int           @default(0)
+  effects              AbilityEffect[]
+  tags                 CharacterTag[]
+
+  // 성장
+  level      Int @default(1)
+  exp        Int @default(0)
+  statPoints Int @default(0)
+
+  // 수치
+  hp          Int
+  maxHp       Int
+  mp          Int
+  maxMp       Int
+  erosion     Int @default(0)
+  ap          Int
+  points      Int
+  escapeCount Int @default(0)
+
+  // 하루 횟수 (04:00 KST 초기화)
+  autoSuccessUsedToday Int    @default(0)
+  teleportUsedToday    Int    @default(0)
+  lastDailyResetKey    String @default("") // "YYYY-MM-DD" (KST 기준 게임일)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  inventory     InventoryItem[]
+  runs          Run[]
+  revealedNodes Node[]          @relation("RevealedBy")
+}
+
+enum AbilityEffectType {
+  CHECK_BONUS   // 판정 보정
+  EXTRA_DICE    // 다이스 추가
+  AUTO_SUCCESS  // 자동 성공 (하루 n회)
+  TELEPORT      // 공간 이동 (하루 n회)
+  CRAFT_DOUBLE  // 제작 2배 (2차)
+  NARRATIVE     // 서술 전용
+}
+
+model AbilityEffect {
+  id          String            @id @default(cuid())
+  characterId String
+  character   Character         @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  type        AbilityEffectType
+  checkType   CheckType?
+  value       Int               @default(0)
+  perDay      Int               @default(0)
+  note        String            @default("")
+  sortOrder   Int               @default(0)
+}
+
+model AbilityTag {
+  id         String         @id @default(cuid())
+  name       String         @unique
+  createdAt  DateTime       @default(now())
+  characters CharacterTag[]
+}
+
+model CharacterTag {
+  characterId String
+  character   Character  @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  tagId       String
+  tag         AbilityTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([characterId, tagId])
+}
+
+// ───────────────────────── 이계 ─────────────────────────
+
+enum RealmKind {
+  FIXED    // 고정 이계
+  INSTANT  // 인스턴트 이계 (2차)
+  SPECIAL  // 특수형 이계 (2차)
+}
+
+model Realm {
+  id          String    @id @default(cuid())
+  name        String
+  intro       String    @default("")
+  kind        RealmKind @default(FIXED)
+  // 세계 지도 위 위치 (0~100, 지도 너비·높이 기준 백분율)
+  mapX        Float     @default(50)
+  mapY        Float     @default(50)
+  startNodeId String?
+  isPublished Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  nodes Node[]
+  edges Edge[]
+  runs  Run[]
+}
+
+model Node {
+  id           String  @id @default(cuid())
+  realmId      String
+  realm        Realm   @relation(fields: [realmId], references: [id], onDelete: Cascade)
+  name         String
+  description  String  @default("")
+  depth        Int     @default(1)
+  isExit       Boolean @default(false)
+  // null이면 기본값(= 층 수) 사용
+  entryErosion Int?
+  // null이면 게임 설정의 기본 보수 사용
+  rewardNew    Int?
+  rewardKnown  Int?
+  // 편집기 좌표
+  posX         Float   @default(0)
+  posY         Float   @default(0)
+
+  // 서버 전체 공개
+  revealedAt   DateTime?
+  revealedById String?
+  revealedBy   Character? @relation("RevealedBy", fields: [revealedById], references: [id], onDelete: SetNull)
+
+  scenes   Scene[]
+  edgesOut Edge[]  @relation("EdgeFrom")
+  edgesIn  Edge[]  @relation("EdgeTo")
+  runLogs  RunLog[]
+}
+
+model Edge {
+  id            String  @id @default(cuid())
+  realmId       String
+  realm         Realm   @relation(fields: [realmId], references: [id], onDelete: Cascade)
+  fromId        String
+  from          Node    @relation("EdgeFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  toId          String
+  to            Node    @relation("EdgeTo", fields: [toId], references: [id], onDelete: Cascade)
+  bidirectional Boolean @default(true)
+  // 통과 조건 (조건 목록, 선택지와 같은 형식). 비어 있으면 자유 통과.
+  conditions    Json    @default("[]")
+  // 통과 판정. null이면 판정 없음.
+  checkType     CheckType?
+  checkTarget   Int?
+  failText      String  @default("")
+  failEffects   Json    @default("[]")
+}
+
+enum SceneKind {
+  BASE   // 기본 장면
+  EVENT  // 진입 시 확률로 발생하는 이벤트 장면
+}
+
+model Scene {
+  id        String    @id @default(cuid())
+  nodeId    String
+  node      Node      @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  kind      SceneKind @default(BASE)
+  name      String    @default("")
+  text      String    @default("")
+  chance    Int       @default(100) // 0~100 (%)
+  mandatory Boolean   @default(false)
+  sortOrder Int       @default(0)
+  choices   Choice[]
+}
+
+enum LockedDisplay {
+  HIDE         // 숨김
+  SHOW_LOCKED  // 잠긴 채 표시
+}
+
+model Choice {
+  id            String        @id @default(cuid())
+  sceneId       String
+  scene         Scene         @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  text          String
+  conditions    Json          @default("[]")
+  lockedDisplay LockedDisplay @default(HIDE)
+  checkType     CheckType?
+  checkTarget   Int?
+  oncePerRun    Boolean       @default(false)
+  sortOrder     Int           @default(0)
+
+  successOutcomeId String?  @unique
+  successOutcome   Outcome? @relation("Success", fields: [successOutcomeId], references: [id], onDelete: SetNull)
+  failOutcomeId    String?  @unique
+  failOutcome      Outcome? @relation("Fail", fields: [failOutcomeId], references: [id], onDelete: SetNull)
+}
+
+model Outcome {
+  id      String @id @default(cuid())
+  text    String @default("")
+  effects Json   @default("[]")
+
+  successOf Choice? @relation("Success")
+  failOf    Choice? @relation("Fail")
+}
+
+// ───────────────────────── 아이템 ─────────────────────────
+
+enum ItemCategory {
+  CONSUMABLE  // 소모품
+  INFECTED    // 감염물
+  MATERIAL    // 재료
+  KEY         // 중요 물품
+  EQUIPMENT   // 장비 (2차)
+}
+
+enum UsableIn {
+  RUN      // 런 중
+  OUTSIDE  // 런 밖
+  BOTH
+}
+
+model Item {
+  id          String       @id @default(cuid())
+  name        String
+  description String       @default("")
+  imageUrl    String?
+  category    ItemCategory @default(CONSUMABLE)
+  effects     Json         @default("[]")
+  usableIn    UsableIn     @default(BOTH)
+  stackLimit  Int          @default(99)
+  shopEnabled Boolean      @default(false)
+  price       Int          @default(0)
+  minLevel    Int          @default(0)
+  minEscapes  Int          @default(0)
+  sellPrice   Int          @default(0) // 회수가. 0이면 판매 불가
+  sortOrder   Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  dropEntries DropEntry[]
+  inventory   InventoryItem[]
+}
+
+model DropTable {
+  id        String      @id @default(cuid())
+  name      String
+  createdAt DateTime    @default(now())
+  entries   DropEntry[]
+}
+
+model DropEntry {
+  id      String    @id @default(cuid())
+  tableId String
+  table   DropTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  // null이면 "아무것도 없음"
+  itemId  String?
+  item    Item?     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  weight  Int       @default(1)
+  minQty  Int       @default(1)
+  maxQty  Int       @default(1)
+}
+
+model InventoryItem {
+  id          String    @id @default(cuid())
+  characterId String
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  itemId      String
+  item        Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  qty         Int       @default(1)
+
+  @@unique([characterId, itemId])
+}
+
+// ───────────────────────── 런 ─────────────────────────
+
+enum RunStatus {
+  ACTIVE
+  ESCAPED
+  FALLEN
+  ABORTED  // 관리자 강제 종료
+}
+
+model Run {
+  id          String    @id @default(cuid())
+  characterId String
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  realmId     String
+  realm       Realm     @relation(fields: [realmId], references: [id], onDelete: Cascade)
+  status      RunStatus @default(ACTIVE)
+  isTest      Boolean   @default(false)
+
+  currentNodeId  String?
+  currentSceneId String?
+  previousNodeId String?
+  // 이번 런에서 밝힌 노드 id 목록 (서버에 아직 미공개였던 것)
+  revealedNodeIds Json @default("[]")
+  // 이번 런에서 들어간 노드 id 목록 (순서대로)
+  visitedNodeIds  Json @default("[]")
+  flags           Json @default("[]")
+  usedChoiceIds   Json @default("[]")
+  // 이번 런 획득 아이템 [{itemId, qty}]
+  loot            Json @default("[]")
+  // 이번 런 보정 [{type, checkType, value}]
+  modifiers       Json @default("[]")
+  // 쓰러짐 시 잃은 아이템 [{itemId, qty}]
+  lostLoot        Json @default("[]")
+  // 획득한 정보 단서 [{text, flag}]
+  clues           Json @default("[]")
+  exp             Int  @default(0)
+  reward          Int  @default(0)
+  // 테스트 플레이: 판정 강제 (null | "SUCCESS" | "FAIL")
+  forceResult     String?
+
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+
+  logs RunLog[]
+
+  @@index([characterId, status])
+}
+
+model RunLog {
+  id          String   @id @default(cuid())
+  runId       String
+  run         Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  seq         Int
+  type        String   // enter, choice, check, outcome, item, system, end ...
+  nodeId      String?
+  node        Node?    @relation(fields: [nodeId], references: [id], onDelete: SetNull)
+  choiceText  String?
+  text        String   @default("")
+  checkDetail Json?
+  deltas      Json?
+  createdAt   DateTime @default(now())
+
+  @@index([runId, seq])
+}
+
+// ───────────────────────── 운영 ─────────────────────────
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model Notice {
+  id        String   @id @default(cuid())
+  title     String
+  body      String
+  pinned    Boolean  @default(false)
+  authorId  String?
+  author    User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     String
+  targetType String   @default("")
+  targetId   String   @default("")
+  detail     Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
