@@ -1,2 +1,3 @@
-import { ComingSoon } from "@/components/ComingSoon";
-export default function Page() { return <ComingSoon title="보관함" stage="5단계" />; }
+import { redirect } from "next/navigation";
+// 보관함은 유저 화면에 통합되었다.
+export default function Page() { redirect("/character"); }

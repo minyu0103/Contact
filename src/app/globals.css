@@ -1,30 +1,32 @@
 @import "tailwindcss";
 
-/* 세계관 속 "프로그램" HUD 톤. 정돈된 각진 패널, 절제된 색, 높은 정보 밀도. */
+/* 세계관 속 "프로그램" HUD. 가는 선, 절제된 색, 작은 모서리 표식, 높은 정보 밀도. */
 :root {
-  --bg: #0b0e12;
-  --bg-2: #11161c;
-  --bg-3: #171e26;
-  --line: #2a3542;
-  --line-2: #3a4858;
-  --fg: #d7dee6;
-  --fg-dim: #8a98a8;
-  --fg-mute: #5b6977;
-  --accent: #6fd3e0;
-  --accent-2: #2f8f9c;
-  --accent-dim: rgba(111, 211, 224, 0.12);
-  --warn: #e3b341;
-  --danger: #e2574f;
-  --ok: #7fd48a;
-  --hp: #e2574f;
-  --mp: #8d8df0;
-  --erosion: #c77dff;
+  --bg: #0a0d12;
+  --bg-2: #0f141b;
+  --bg-3: #151c25;
+  --bg-4: #1b242f;
+  --line: rgba(148, 170, 196, 0.14);
+  --line-2: rgba(148, 170, 196, 0.28);
+  --fg: #e3e9f0;
+  --fg-dim: #94a3b5;
+  --fg-mute: #5f6e7f;
+  --accent: #72d6e3;
+  --accent-2: #3aa3b3;
+  --accent-dim: rgba(114, 214, 227, 0.1);
+  --warn: #e6b94d;
+  --danger: #e4605a;
+  --ok: #83d690;
+  --hp: #e4605a;
+  --mp: #9a95f2;
+  --erosion: #c98cff;
 }
 
 @theme inline {
   --color-bg: var(--bg);
   --color-bg-2: var(--bg-2);
   --color-bg-3: var(--bg-3);
+  --color-bg-4: var(--bg-4);
   --color-line: var(--line);
   --color-line-2: var(--line-2);
   --color-fg: var(--fg);
@@ -32,14 +34,15 @@
   --color-fg-mute: var(--fg-mute);
   --color-accent: var(--accent);
   --color-accent-2: var(--accent-2);
+  --color-accent-dim: var(--accent-dim);
   --color-warn: var(--warn);
   --color-danger: var(--danger);
   --color-ok: var(--ok);
   --color-hp: var(--hp);
   --color-mp: var(--mp);
   --color-erosion: var(--erosion);
-  --font-sans: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", "SF Mono", "Consolas", "Menlo", monospace;
+  --font-sans: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
 }
 
 html {
@@ -48,21 +51,50 @@ html {
 
 body {
   background:
-    radial-gradient(1200px 600px at 20% -10%, rgba(111, 211, 224, 0.06), transparent 60%),
-    radial-gradient(900px 500px at 100% 100%, rgba(199, 125, 255, 0.05), transparent 60%),
+    radial-gradient(1100px 520px at 15% -10%, rgba(114, 214, 227, 0.07), transparent 60%),
+    radial-gradient(800px 480px at 100% 110%, rgba(201, 140, 255, 0.05), transparent 60%),
     var(--bg);
   color: var(--fg);
   font-family: var(--font-sans);
+  font-feature-settings: "ss05", "cv11";
+  letter-spacing: -0.005em;
   -webkit-font-smoothing: antialiased;
   min-height: 100dvh;
 }
 
-/* 각진 패널: 모서리 하나를 깎아 HUD 느낌을 낸다 */
+/* 숫자, 코드, 시각은 모노스페이스. 한글 라벨에는 쓰지 않는다. */
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+/* 패널: 가는 테두리 + 모서리 표식 */
 .panel {
-  background: var(--bg-2);
-  border: 1px solid var(--line);
-  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
   position: relative;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0) 40%), var(--bg-2);
+  border: 1px solid var(--line);
+}
+.panel::before,
+.panel::after {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+  border-color: var(--accent-2);
+  border-style: solid;
+  opacity: 0.8;
+}
+.panel::before {
+  top: -1px;
+  left: -1px;
+  border-width: 1px 0 0 1px;
+}
+.panel::after {
+  bottom: -1px;
+  right: -1px;
+  border-width: 0 1px 1px 0;
 }
 .panel-flat {
   background: var(--bg-2);
@@ -71,33 +103,34 @@ body {
 .panel-title {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.875rem;
+  gap: 0.55rem;
+  padding: 0.6rem 1rem;
   border-bottom: 1px solid var(--line);
-  font-size: 0.7rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   color: var(--fg-dim);
-  font-family: var(--font-mono);
 }
 .panel-title::before {
   content: "";
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 12px;
   background: var(--accent);
-  box-shadow: 0 0 8px var(--accent);
+  box-shadow: 0 0 10px rgba(114, 214, 227, 0.6);
+}
+.panel-title .code {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  color: var(--fg-mute);
 }
 
 .hud-label {
-  font-family: var(--font-mono);
-  font-size: 0.65rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   color: var(--fg-mute);
-}
-.mono {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
 }
 
 /* 버튼 */
@@ -107,19 +140,19 @@ body {
   justify-content: center;
   gap: 0.5rem;
   padding: 0.6rem 1.1rem;
-  font-size: 0.875rem;
+  font-size: 0.84rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.01em;
   border: 1px solid var(--line-2);
   background: var(--bg-3);
   color: var(--fg);
-  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+  clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 7px 100%, 0 calc(100% - 7px));
   transition: background 120ms, border-color 120ms, color 120ms;
   cursor: pointer;
   text-align: center;
 }
 .btn:hover {
-  background: #1e2731;
+  background: var(--bg-4);
   border-color: var(--accent-2);
 }
 .btn:disabled {
@@ -127,24 +160,33 @@ body {
   cursor: not-allowed;
 }
 .btn-primary {
-  background: var(--accent);
+  background: linear-gradient(180deg, #86e0eb, var(--accent));
   color: #06161a;
-  border-color: var(--accent);
+  border-color: transparent;
 }
 .btn-primary:hover {
-  background: #8ae3ee;
-  border-color: #8ae3ee;
+  background: linear-gradient(180deg, #98e7f0, #7fdbe7);
+  border-color: transparent;
 }
 .btn-danger {
-  border-color: var(--danger);
+  border-color: rgba(228, 96, 90, 0.6);
   color: var(--danger);
 }
 .btn-danger:hover {
-  background: rgba(226, 87, 79, 0.12);
+  background: rgba(228, 96, 90, 0.1);
+}
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--fg-dim);
+}
+.btn-ghost:hover {
+  background: var(--accent-dim);
+  color: var(--fg);
 }
 .btn-sm {
   padding: 0.35rem 0.7rem;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
 }
 .btn-block {
   width: 100%;
@@ -154,64 +196,66 @@ body {
 .field {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.4rem;
 }
 .field > label,
 .field-label {
-  font-family: var(--font-mono);
-  font-size: 0.65rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   color: var(--fg-dim);
 }
 .input,
 .textarea,
 .select {
   width: 100%;
-  background: var(--bg);
-  border: 1px solid var(--line);
+  background: rgba(10, 13, 18, 0.7);
+  border: 1px solid var(--line-2);
   color: var(--fg);
-  padding: 0.55rem 0.75rem;
+  padding: 0.6rem 0.8rem;
   font-size: 0.9rem;
   outline: none;
-  transition: border-color 120ms;
+  transition: border-color 120ms, box-shadow 120ms;
+}
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--fg-mute);
 }
 .input:focus,
 .textarea:focus,
 .select:focus {
   border-color: var(--accent-2);
-  box-shadow: 0 0 0 2px var(--accent-dim);
+  box-shadow: 0 0 0 3px var(--accent-dim);
 }
 .textarea {
   min-height: 7rem;
   resize: vertical;
-  line-height: 1.55;
+  line-height: 1.6;
 }
 .help {
-  font-size: 0.75rem;
+  font-size: 0.76rem;
   color: var(--fg-mute);
-  line-height: 1.5;
+  line-height: 1.55;
 }
 .error {
   font-size: 0.8rem;
   color: var(--danger);
   border-left: 2px solid var(--danger);
-  padding: 0.35rem 0.6rem;
-  background: rgba(226, 87, 79, 0.08);
+  padding: 0.4rem 0.65rem;
+  background: rgba(228, 96, 90, 0.08);
 }
 .success {
   font-size: 0.8rem;
   color: var(--ok);
   border-left: 2px solid var(--ok);
-  padding: 0.35rem 0.6rem;
-  background: rgba(127, 212, 138, 0.08);
+  padding: 0.4rem 0.65rem;
+  background: rgba(131, 214, 144, 0.08);
 }
 
 /* 게이지 */
 .gauge {
-  height: 6px;
-  background: var(--bg);
-  border: 1px solid var(--line);
+  height: 4px;
+  background: rgba(255, 255, 255, 0.06);
   overflow: hidden;
 }
 .gauge > div {
@@ -219,21 +263,12 @@ body {
   transition: width 240ms;
 }
 
-/* 격자 배경 */
+/* 배경 격자 */
 .grid-bg {
   background-image:
-    linear-gradient(rgba(111, 211, 224, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(111, 211, 224, 0.05) 1px, transparent 1px);
-  background-size: 28px 28px;
-}
-
-/* 스캔라인 */
-.scanlines::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.015) 0 1px, transparent 1px 3px);
+    linear-gradient(rgba(114, 214, 227, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(114, 214, 227, 0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
 }
 
 /* 타이핑 커서 */
@@ -251,39 +286,57 @@ body {
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: 0.84rem;
 }
 .table th {
   text-align: left;
-  font-family: var(--font-mono);
-  font-size: 0.65rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
   color: var(--fg-mute);
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--line-2);
   white-space: nowrap;
 }
 .table td {
   padding: 0.55rem 0.75rem;
-  border-bottom: 1px solid rgba(42, 53, 66, 0.6);
+  border-bottom: 1px solid var(--line);
   vertical-align: top;
 }
 .table tr:hover td {
-  background: rgba(111, 211, 224, 0.03);
+  background: rgba(114, 214, 227, 0.03);
 }
 
 /* 태그 */
 .tag {
-  display: inline-block;
-  padding: 0.1rem 0.45rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.45rem;
   font-size: 0.68rem;
-  font-family: var(--font-mono);
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  letter-spacing: 0.03em;
   border: 1px solid var(--line-2);
   color: var(--fg-dim);
+  line-height: 1.4;
 }
-.tag-accent { border-color: var(--accent-2); color: var(--accent); }
-.tag-warn { border-color: var(--warn); color: var(--warn); }
-.tag-danger { border-color: var(--danger); color: var(--danger); }
-.tag-ok { border-color: var(--ok); color: var(--ok); }
+.tag-accent { border-color: rgba(114, 214, 227, 0.5); color: var(--accent); background: var(--accent-dim); }
+.tag-warn { border-color: rgba(230, 185, 77, 0.5); color: var(--warn); background: rgba(230, 185, 77, 0.08); }
+.tag-danger { border-color: rgba(228, 96, 90, 0.5); color: var(--danger); background: rgba(228, 96, 90, 0.08); }
+.tag-ok { border-color: rgba(131, 214, 144, 0.5); color: var(--ok); background: rgba(131, 214, 144, 0.08); }
+
+/* 구분선 라벨 */
+.divider-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--fg-mute);
+}
+.divider-label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}

@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 
 const LINES = [
-  "기기 호환성 확인... 통과",
-  "생체 신호 스캔... 인자 반응 감지",
-  "접근 권한 검증... 사용자 의지 확인 중",
-  "주변 이계 신호 탐색... 3건 감지",
+  "기기 호환성 확인 ... 통과",
+  "생체 신호 스캔 ... 인자 반응 감지",
+  "접근 권한 검증 ... 사용자 의지 확인",
+  "주변 이계 신호 탐색 ... 3건 감지",
   "자동 설치 준비 완료. 초대 코드를 입력하십시오.",
 ];
 
@@ -19,13 +19,14 @@ export function BootLog() {
     return () => clearTimeout(t);
   }, [count]);
   return (
-    <pre className="mono mb-4 min-h-[6.5rem] whitespace-pre-wrap border border-line bg-bg p-3 text-[0.7rem] leading-5 text-fg-dim">
+    <div className="mb-5 min-h-[7rem] border border-line bg-bg/70 p-3 text-[0.74rem] leading-6 text-fg-dim">
       {LINES.slice(0, count).map((l, i) => (
-        <div key={i}>
-          <span className="text-accent-2">▸</span> {l}
+        <div key={i} className="flex gap-2">
+          <span className="mono text-fg-mute">{String(i + 1).padStart(2, "0")}</span>
+          <span>{l}</span>
         </div>
       ))}
       {count < LINES.length && <span className="cursor-blink" />}
-    </pre>
+    </div>
   );
 }

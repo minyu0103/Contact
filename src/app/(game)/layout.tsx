@@ -10,12 +10,12 @@ export default async function GameLayout({ children }: { children: React.ReactNo
   const cfg = await getConfig();
   const character = (await loadCharacter(raw.id, cfg)) ?? raw;
   return (
-    <div className="min-h-dvh pb-16 sm:pb-0">
+    <div className="min-h-dvh pb-20 sm:pb-0">
       <StatusBar character={character} cfg={cfg} isAdmin={user.role === "ADMIN"} />
-      <div className="mx-auto flex max-w-6xl gap-4 px-3 py-4 sm:px-4">
+      <div className="mx-auto flex max-w-6xl gap-6 px-3 py-5 sm:px-5">
         <aside className="hidden sm:block">
           <GameNav />
-          <form action={logoutAction} className="mt-4 px-3">
+          <form action={logoutAction} className="mt-6 px-3">
             <button className="hud-label hover:text-fg" type="submit">접속 종료</button>
           </form>
         </aside>
