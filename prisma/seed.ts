@@ -2,6 +2,7 @@
 // 아이템은 운영자가 관리자 페이지에서 고치거나 지울 수 있다.
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { seedSampleRealm } from "./seed-realm";
 
 const db = new PrismaClient();
 
@@ -53,6 +54,8 @@ async function main() {
     });
   }
   console.log("기본 아이템 5종 확인");
+
+  await seedSampleRealm(db);
 
   if ((await db.notice.count()) === 0) {
     await db.notice.create({

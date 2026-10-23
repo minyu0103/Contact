@@ -107,3 +107,75 @@ export function describeAbilityEffect(e: { type: string; checkType: string | nul
     default: return e.type;
   }
 }
+
+// ───────────── 선택지 표시 조건 ─────────────
+// 여러 개면 모두 충족해야 한다. 연결(edge)의 통과 조건에도 같은 형식을 쓴다.
+
+export type Condition =
+  | { type: "category"; value: "COMBAT" | "SEARCH" | "PRODUCTION" | "SPECIAL" }
+  | { type: "ability_effect"; value: "CHECK_BONUS" | "EXTRA_DICE" | "AUTO_SUCCESS" | "TELEPORT" | "CRAFT_DOUBLE" | "NARRATIVE" }
+  | { type: "tag"; tagId: string }
+  | { type: "item"; itemId: string }
+  | { type: "erosion_stage_at_least"; value: "STABLE" | "ACTIVE" | "WARNING" | "DANGER" }
+  | { type: "flag"; flag: string }
+  | { type: "not_flag"; flag: string };
+
+export const CONDITION_DEFS: { type: Condition["type"]; label: string; help?: string }[] = [
+  { type: "category", label: "카테고리가 ~이다" },
+  { type: "tag", label: "능력 태그 보유" },
+  { type: "ability_effect", label: "능력 효과 보유" },
+  { type: "item", label: "아이템 보유" },
+  { type: "erosion_stage_at_least", label: "침식률 단계 이상" },
+  { type: "flag", label: "런 플래그 있음", help: "같은 런에서 설정된 플래그" },
+  { type: "not_flag", label: "런 플래그 없음" },
+];
+
+export const EROSION_STAGE_OPTIONS = [
+  { value: "STABLE", label: "안정" },
+  { value: "ACTIVE", label: "활성" },
+  { value: "WARNING", label: "경고" },
+  { value: "DANGER", label: "위험" },
+] as const;
+
+// ───────────── 결과 효과 ─────────────
+
+export type OutcomeEffect =
+  | { type: "hp"; value: number }
+  | { type: "mp"; value: number }
+  | { type: "erosion"; value: number }
+  | { type: "item_gain"; itemId: string; qty: number }
+  | { type: "item_drop"; tableId: string; rolls: number }
+  | { type: "item_lose"; itemId: string; qty: number }
+  | { type: "points"; value: number }
+  | { type: "clue"; text: string; flag: string }
+  | { type: "set_flag"; flag: string }
+  | { type: "goto_scene"; sceneId: string }
+  | { type: "move"; nodeId: string }
+  | { type: "move_back" }
+  | { type: "reveal"; nodeId: string }
+  | { type: "escape" };
+
+export const OUTCOME_EFFECT_DEFS: { type: OutcomeEffect["type"]; label: string; help?: string }[] = [
+  { type: "hp", label: "체력 ±n" },
+  { type: "mp", label: "정신력 ±n" },
+  { type: "erosion", label: "침식률 ±n", help: "양수면 정신력 배율 적용" },
+  { type: "item_gain", label: "아이템 획득 (지정)" },
+  { type: "item_drop", label: "아이템 획득 (드랍 테이블)" },
+  { type: "item_lose", label: "아이템 소모" },
+  { type: "points", label: "P 획득" },
+  { type: "clue", label: "정보 획득", help: "탐사기록에 남는 단서 + 추적용 플래그" },
+  { type: "set_flag", label: "런 플래그 설정" },
+  { type: "goto_scene", label: "다른 장면으로" },
+  { type: "move", label: "노드 이동" },
+  { type: "move_back", label: "직전 노드로 이동" },
+  { type: "reveal", label: "노드 공개 (이동 없이)" },
+  { type: "escape", label: "탈출" },
+];
+
+/** 판정 목표치 도움말 */
+export const CHECK_TARGET_HELP = [
+  { target: 5, label: "쉬움", chance: "약 83%" },
+  { target: 7, label: "보통", chance: "약 58%" },
+  { target: 9, label: "어려움", chance: "약 28%" },
+  { target: 11, label: "매우 어려움", chance: "약 8%" },
+];
