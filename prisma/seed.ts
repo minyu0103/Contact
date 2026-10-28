@@ -35,6 +35,7 @@ async function main() {
     { name: "침식 억제제", description: "침식률을 낮추는 주사제. 프로그램이 권장하는 기본 처치.", effects: [{ type: "erosion", value: -10 }], price: 60, sellPrice: 20, sortOrder: 3 },
     { name: "이능 강화제", description: "이번 탐사 동안 이능을 끌어올린다. 침식률이 함께 오른다.", effects: [{ type: "run_check_bonus", checkType: "OWN", value: 1 }, { type: "erosion", value: 5 }], price: 50, sellPrice: 15, usableIn: "RUN" as const, sortOrder: 4 },
     { name: "귀환 비컨", description: "작동시키면 이계에서 즉시 빠져나온다. 밝힌 지도는 보존된다.", effects: [{ type: "escape" }], price: 100, sellPrice: 30, usableIn: "RUN" as const, sortOrder: 5 },
+    { name: "이계용 비디오 카메라", description: "이계 안에서도 기록이 남는 특수 카메라. 지니고 입장하면 그 탐사의 카메라 로그를 쓸 수 있다.", effects: [{ type: "camera" }], price: 150, sellPrice: 50, usableIn: "BOTH" as const, sortOrder: 6, category: "KEY" as const, stackLimit: 1 },
   ];
   for (const it of items) {
     const existing = await db.item.findFirst({ where: { name: it.name } });
@@ -43,7 +44,8 @@ async function main() {
       data: {
         name: it.name,
         description: it.description,
-        category: "CONSUMABLE",
+        category: ("category" in it ? it.category : "CONSUMABLE"),
+        stackLimit: "stackLimit" in it ? it.stackLimit : 99,
         effects: it.effects,
         usableIn: it.usableIn ?? "BOTH",
         shopEnabled: true,

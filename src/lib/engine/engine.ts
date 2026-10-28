@@ -385,7 +385,9 @@ export async function startRun(characterId: string, realmId: string, opts: { isT
       if (character.abilityStatus !== "ACTIVE" && !cfg["ability.allowExploreWhilePending"]) throw new EngineError("능력 심사가 끝나야 탐사할 수 있습니다.");
       await tx.character.update({ where: { id: characterId }, data: { ap: { decrement: 1 } } });
     }
-    const created = await tx.run.create({ data: { characterId, realmId, isTest, forceResult: opts.forceResult ?? null, testState: isTest ? (stateFromCharacter(character as RunRow["character"]) as unknown as Prisma.InputJsonValue) : undefined } });
+    const inv = await tx.inventoryItem.findMany({ where: { characterId }, include: { item: true } });
+    const hadCamera = inv.some((i) => (i.item.effects as ItemEffect[]).some((e) => e.type === "camera"));
+    const created = await tx.run.create({ data: { characterId, realmId, isTest, hadCamera, forceResult: opts.forceResult ?? null, testState: isTest ? (stateFromCharacter(character as RunRow["character"]) as unknown as Prisma.InputJsonValue) : undefined } });
     const env = await loadEnv(tx, created.id, cfg);
     const deltas: Delta[] = [];
     await enterNode(env, realm.startNodeId, null, deltas);
@@ -554,7 +556,7 @@ export async function consumeItemInRun(runId: string, itemId: string): Promise<A
     if (item.usableIn === "OUTSIDE") throw new EngineError("런 중에는 쓸 수 없는 아이템입니다.");
     if (invQty(env, itemId) <= 0) throw new EngineError("가지고 있지 않은 아이템입니다.");
     const effects = item.effects as ItemEffect[];
-    if (effects.length === 0 || effects.every((e) => e.type === "narrative")) throw new EngineError("사용 효과가 없는 아이템입니다.");
+    if (effects.length === 0 || effects.every((e) => e.type === "narrative" || e.type === "camera")) throw new EngineError("사용 효과가 없는 아이템입니다.");
     removeItem(env, itemId, 1);
     const deltas: Delta[] = [];
     const nav: Nav = {};
@@ -566,7 +568,7 @@ export async function consumeItemInRun(runId: string, itemId: string): Promise<A
         case "run_check_bonus": env.modifiers.push({ type: "run_check_bonus", checkType: e.checkType, value: e.value, label: item.name }); deltas.push({ label: "이번 런 판정", text: `${item.name} ${e.value >= 0 ? "+" : ""}${e.value}` }); break;
         case "run_extra_dice": env.modifiers.push({ type: "run_extra_dice", checkType: e.checkType, value: e.value, label: item.name }); deltas.push({ label: "이번 런 다이스", text: `${item.name} +${e.value}` }); break;
         case "escape": nav.escape = true; break;
-        case "narrative": break;
+        case "narrative": case "camera": break;
       }
     }
     const node = await loadNode(tx, run.currentNodeId);
@@ -653,6 +655,8 @@ export type RunView = {
   teleportRemaining: number;
   teleportTargets: { id: string; name: string }[];
   minimap: { nodes: MiniNode[]; edges: MiniEdge[] };
+  hadCamera: boolean;
+  memos: { id: string; title: string; body: string; author: string; reactions: number }[];
 };
 
 export async function getRunView(runId: string): Promise<RunView> {
@@ -664,6 +668,8 @@ export async function getRunView(runId: string): Promise<RunView> {
     db.edge.findMany({ where: { realmId: run.realmId } }),
     db.character.findMany({ where: { revealedNodes: { some: { realmId: run.realmId } } }, select: { id: true, name: true } }),
   ]);
+  const memoRows = run.currentNodeId ? await db.explorationLog.findMany({ where: { nodeId: run.currentNodeId, kind: "DIARY", status: "APPROVED" }, include: { character: { select: { name: true } }, post: { include: { _count: { select: { reactions: true } } } } } }) : [];
+  const memos = memoRows.filter((m) => m.post._count.reactions >= cfg["log.memoThreshold"]).map((m) => ({ id: m.id, title: m.title, body: m.body, author: m.character.name, reactions: m.post._count.reactions }));
   const known = (id: string) => { const n = nodes.find((x) => x.id === id); return !!n && (!!n.revealedAt || env.revealed.includes(id) || env.visited.includes(id)); };
   const currentId = run.currentNodeId ?? run.realm.startNodeId ?? nodes[0]?.id;
   const node = currentId ? await loadNode(db, currentId) : null;
@@ -692,7 +698,7 @@ export async function getRunView(runId: string): Promise<RunView> {
 
   const lootView = env.loot.map((l) => ({ itemId: l.itemId, name: names.items.get(l.itemId) ?? "?", qty: l.qty }));
   const usable: RunView["usableItems"] = [];
-  const canUse = (it: typeof items[number]) => it.usableIn !== "OUTSIDE" && (it.effects as ItemEffect[]).some((e) => e.type !== "narrative");
+  const canUse = (it: typeof items[number]) => it.usableIn !== "OUTSIDE" && (it.effects as ItemEffect[]).some((e) => e.type !== "narrative" && e.type !== "camera");
   if (!run.isTest) for (const inv of run.character.inventory) { const it = items.find((i) => i.id === inv.itemId); if (it && canUse(it)) usable.push({ itemId: it.id, name: it.name, qty: inv.qty, description: it.description, fromLoot: false }); }
   for (const l of env.loot) { const it = items.find((i) => i.id === l.itemId); if (it && canUse(it)) usable.push({ itemId: it.id, name: it.name, qty: l.qty, description: it.description, fromLoot: true }); }
 
@@ -720,5 +726,7 @@ export async function getRunView(runId: string): Promise<RunView> {
     teleportRemaining: teleportRemaining(env),
     teleportTargets: nodes.filter((n) => knownIds.has(n.id) && n.id !== currentId).map((n) => ({ id: n.id, name: n.name })),
     minimap,
+    hadCamera: run.hadCamera,
+    memos,
   };
 }

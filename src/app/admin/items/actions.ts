@@ -18,6 +18,7 @@ const effectSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("run_check_bonus"), checkType: checkTarget, value: z.number().int() }),
   z.object({ type: z.literal("run_extra_dice"), checkType: checkTarget, value: z.number().int().min(1) }),
   z.object({ type: z.literal("escape") }),
+  z.object({ type: z.literal("camera") }),
   z.object({ type: z.literal("narrative"), text: z.string().max(200) }),
 ]);
 

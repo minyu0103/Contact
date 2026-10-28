@@ -78,6 +78,11 @@ export const SETTING_DEFS = [
   { key: "post.timelineMaxLength", label: "타임라인 글 최대 글자 수", group: "교류", type: "number", default: 280, min: 20 },
   { key: "org.maxMembers", label: "조직 최대 인원", group: "교류", type: "number", default: 10, min: 1 },
 
+  // 로그 (2차)
+  { key: "log.diaryReward", label: "일기 로그 보수 (P)", group: "로그", type: "number", default: 15, min: 0 },
+  { key: "log.diaryMaxLength", label: "일기 로그 최대 글자 수", group: "로그", type: "number", default: 1000, min: 50 },
+  { key: "log.memoThreshold", label: "맵 메모가 되는 공감 수", group: "로그", type: "number", default: 3, min: 1, help: "일기 로그의 공감이 이 수 이상이면 해당 구역에 메모로 표시" },
+
   // 능력
   { key: "ability.allowExploreWhilePending", label: "능력 심사 중에도 탐사 가능", group: "능력", type: "boolean", default: true },
 ] as const satisfies readonly SettingDef[];

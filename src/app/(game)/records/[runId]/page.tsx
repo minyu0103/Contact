@@ -16,13 +16,23 @@ function DeltaTags({ deltas }: { deltas: Delta[] }) {
 export default async function RecordDetailPage({ params }: { params: Promise<{ runId: string }> }) {
   const { runId } = await params;
   const { user, character } = await requireCharacterUser();
-  const run = await db.run.findUnique({ where: { id: runId }, include: { realm: true, logs: { orderBy: { seq: "asc" }, include: { node: true } } } });
+  const run = await db.run.findUnique({ where: { id: runId }, include: { realm: true, logs: { orderBy: { seq: "asc" }, include: { node: true } }, logs2: true } });
   if (!run) notFound();
   if (run.characterId !== character.id && user.role !== "ADMIN") redirect("/records");
   if (run.status === "ACTIVE") redirect(`/explore/${run.id}`);
   const s = run.summary as RunSummary | null;
+  const diary = run.logs2.find((l) => l.kind === "DIARY");
+  const camera = run.logs2.find((l) => l.kind === "CAMERA");
+  const mine = run.characterId === character.id;
   return (
     <div className="flex flex-col gap-4">
+      {mine && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="hud-label">로그</span>
+          {diary ? <Link href={`/community/logs/${diary.id}`} className="btn btn-sm">일기 로그 보기</Link> : <Link href={`/records/${run.id}/log?kind=diary`} className="btn btn-primary btn-sm">일기 로그 쓰기</Link>}
+          {camera ? <Link href={`/community/logs/${camera.id}`} className="btn btn-sm">카메라 로그 보기 ({camera.status === "PENDING" ? "심사 중" : camera.status === "APPROVED" ? "공개" : "반려"})</Link> : run.hadCamera ? <Link href={`/records/${run.id}/log?kind=camera`} className="btn btn-primary btn-sm">카메라 로그 쓰기</Link> : <span className="help">카메라 로그는 비디오 카메라를 지니고 입장한 탐사만 가능</span>}
+        </div>
+      )}
       <section className="panel">
         <div className="panel-title">{run.realm.name}<span className="code">{STATUS_LABEL[run.status]}</span></div>
         <div className="grid gap-x-6 gap-y-1.5 p-4 text-sm sm:grid-cols-[auto_1fr]">

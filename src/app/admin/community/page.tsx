@@ -5,7 +5,7 @@ import { ConfirmSubmit } from "@/components/ConfirmSubmit";
 import { formatKst } from "@/lib/time";
 import { adminDeleteOrgAction, adminDeletePostAction } from "./actions";
 
-const KIND = { TIMELINE: "타임라인", BOARD: "게시판", ORG: "조직" } as const;
+const KIND = { TIMELINE: "타임라인", BOARD: "게시판", ORG: "조직", LOG: "로그" } as const;
 
 async function rpCountLast24h() {
   const since = new Date(Date.now() - 24 * 3600 * 1000);
@@ -30,7 +30,7 @@ export default async function AdminCommunityPage() {
               {posts.map((p) => (
                 <tr key={p.id}>
                   <td className="text-xs">{KIND[p.kind]}{p.org && <span className="text-fg-mute"> · {p.org.name}</span>}</td>
-                  <td className="max-w-md truncate">{p.kind === "BOARD" ? <Link href={`/community/board/${p.id}`} className="hover:text-accent">{p.title}</Link> : p.body.slice(0, 60)}</td>
+                  <td className="max-w-md truncate">{p.kind === "BOARD" ? <Link href={`/community/board/${p.id}`} className="hover:text-accent">{p.title}</Link> : p.kind === "LOG" ? <span className="text-fg-dim">[로그] {p.title}</span> : p.body.slice(0, 60)}</td>
                   <td className="text-xs">{p.author.name}{p.isAnonymous && <span className="tag tag-warn ml-1">익명</span>}</td>
                   <td className="mono text-xs">{p._count.comments}</td>
                   <td className="mono text-xs text-fg-mute">{formatKst(p.createdAt)}</td>

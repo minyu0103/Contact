@@ -133,6 +133,7 @@ model Character {
   ledOrg       Organization?   @relation("OrgLeader")
   orgMember    OrgMember?
   orgInvites   OrgInvite[]
+  explorationLogs ExplorationLog[]
 }
 
 enum AbilityEffectType {
@@ -196,6 +197,7 @@ model Realm {
   nodes Node[]
   edges Edge[]
   runs  Run[]
+  explorationLogs ExplorationLog[]
 }
 
 model Node {
@@ -224,6 +226,7 @@ model Node {
   edgesOut Edge[]  @relation("EdgeFrom")
   edgesIn  Edge[]  @relation("EdgeTo")
   runLogs  RunLog[]
+  memos    ExplorationLog[]
 }
 
 model Edge {
@@ -407,6 +410,9 @@ model Run {
   lastResult      Json?
   // 런 종료 요약 (런 종료 화면용)
   summary         Json?
+  // 입장 시 이계용 비디오 카메라를 지니고 있었는지 (카메라 로그 작성 조건)
+  hadCamera       Boolean @default(false)
+  logs2           ExplorationLog[]
 
   startedAt DateTime  @default(now())
   endedAt   DateTime?
@@ -414,6 +420,48 @@ model Run {
   logs RunLog[]
 
   @@index([characterId, status])
+}
+
+// ───────────────────────── 탐사 로그 (2차) ─────────────────────────
+
+enum LogKind {
+  DIARY   // 일기 로그: 짧은 글, 즉시 보수
+  CAMERA  // 카메라 로그: 정리된 글·그림, 운영자 심사 후 지급
+}
+
+enum LogStatus {
+  PENDING   // 심사 중 (카메라)
+  APPROVED  // 공개됨
+  REJECTED  // 반려
+}
+
+model ExplorationLog {
+  id           String    @id @default(cuid())
+  kind         LogKind
+  status       LogStatus @default(APPROVED)
+  runId        String
+  run          Run       @relation(fields: [runId], references: [id], onDelete: Cascade)
+  characterId  String
+  character    Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  realmId      String
+  realm        Realm     @relation(fields: [realmId], references: [id], onDelete: Cascade)
+  // 맵 메모로 남길 노드 (일기 로그)
+  nodeId       String?
+  node         Node?     @relation(fields: [nodeId], references: [id], onDelete: SetNull)
+  title        String
+  body         String
+  imageUrl     String?
+  // 댓글·공감용 글
+  postId       String    @unique
+  post         Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  rewardPaid   Int       @default(0)
+  adminComment String    @default("")
+  createdAt    DateTime  @default(now())
+  reviewedAt   DateTime?
+
+  @@unique([runId, kind])
+  @@index([realmId, nodeId])
+  @@index([status, createdAt])
 }
 
 model RunLog {
@@ -471,6 +519,7 @@ enum PostKind {
   TIMELINE  // SNS 타임라인 (짧은 글)
   BOARD     // 게시판
   ORG       // 조직 게시판
+  LOG       // 탐사 로그에 딸린 댓글·공감용
 }
 
 model Post {
@@ -487,6 +536,7 @@ model Post {
   updatedAt   DateTime  @updatedAt
   comments    Comment[]
   reactions   Reaction[]
+  log         ExplorationLog?
 
   @@index([kind, createdAt])
   @@index([orgId, createdAt])

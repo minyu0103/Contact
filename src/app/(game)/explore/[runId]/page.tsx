@@ -49,6 +49,14 @@ export default async function ExplorePage({ params }: { params: Promise<{ runId:
             </dl>
           </section>
         )}
+        {view.memos.length > 0 && (
+          <section className="panel">
+            <div className="panel-title">이 구역의 메모<span className="code">{view.memos.length}</span></div>
+            <ul className="divide-y divide-line text-sm">
+              {view.memos.map((m) => <li key={m.id} className="px-4 py-2"><p className="font-semibold">{m.title} <span className="text-xs font-normal text-fg-mute">— {m.author} · ◆{m.reactions}</span></p><p className="line-clamp-4 whitespace-pre-wrap text-xs text-fg-dim">{m.body}</p></li>)}
+            </ul>
+          </section>
+        )}
         {view.clues.length > 0 && (
           <section className="panel">
             <div className="panel-title">이번 런 단서<span className="code">{view.clues.length}</span></div>

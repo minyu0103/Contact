@@ -50,6 +50,7 @@ export type ItemEffect =
   | { type: "run_check_bonus"; checkType: CheckTarget; value: number }
   | { type: "run_extra_dice"; checkType: CheckTarget; value: number }
   | { type: "escape" }
+  | { type: "camera" }
   | { type: "narrative"; text: string };
 
 export const ITEM_EFFECT_DEFS: { type: ItemEffect["type"]; label: string; fields: ("value" | "checkType" | "text")[]; help?: string }[] = [
@@ -59,6 +60,7 @@ export const ITEM_EFFECT_DEFS: { type: ItemEffect["type"]; label: string; fields
   { type: "run_check_bonus", label: "이번 런 판정 보정", fields: ["checkType", "value"] },
   { type: "run_extra_dice", label: "이번 런 다이스 추가", fields: ["checkType", "value"], help: "추가 개수" },
   { type: "escape", label: "즉시 탈출", fields: [] },
+  { type: "camera", label: "이계용 비디오 카메라", fields: [], help: "지니고 입장한 런은 카메라 로그를 쓸 수 있음 (소모되지 않음)" },
   { type: "narrative", label: "서술 전용", fields: ["text"], help: "시스템 효과 없이 설명만" },
 ];
 
@@ -72,6 +74,7 @@ export function describeItemEffect(e: ItemEffect): string {
     case "run_check_bonus": return `이번 런 ${ct(e.checkType)} ${sign(e.value)}`;
     case "run_extra_dice": return `이번 런 ${ct(e.checkType)} 다이스 +${e.value}`;
     case "escape": return "즉시 탈출";
+    case "camera": return "카메라 로그 작성 가능";
     case "narrative": return e.text || "서술 전용";
   }
 }

@@ -22,6 +22,8 @@ export default async function RealmInfoPage({ params }: { params: Promise<{ real
   const miniNodes = realm.nodes.filter((n) => showIds.has(n.id)).map((n) => ({ id: n.id, name: knownIds.has(n.id) ? n.name : "???", depth: n.depth, x: n.posX, y: n.posY, known: knownIds.has(n.id), current: false, visited: false, isExit: knownIds.has(n.id) && n.isExit, revealedBy: n.revealedBy?.name ?? null }));
   const miniEdges = realm.edges.filter((e) => showIds.has(e.fromId) && showIds.has(e.toId) && (knownIds.has(e.fromId) || knownIds.has(e.toId))).map((e) => ({ id: e.id, from: e.fromId, to: e.toId }));
   const revealed = realm.nodes.filter((n) => n.revealedAt).sort((a, b) => a.revealedAt!.getTime() - b.revealedAt!.getTime());
+  const memoRows = await db.explorationLog.findMany({ where: { realmId: realm.id, kind: "DIARY", status: "APPROVED", nodeId: { not: null } }, include: { character: { select: { name: true } }, node: { select: { name: true } }, post: { include: { _count: { select: { reactions: true } } } } } });
+  const memos = memoRows.filter((m) => m.post._count.reactions >= cfg["log.memoThreshold"] && m.node && knownIds.has(m.nodeId!));
   const pct = realm.nodes.length ? Math.round((knownIds.size / realm.nodes.length) * 100) : 0;
   const blocked = stage === "DANGER";
 
@@ -50,6 +52,14 @@ export default async function RealmInfoPage({ params }: { params: Promise<{ real
             <Link href="/map" className="btn btn-ghost btn-sm">← 세계 지도</Link>
           </div>
         </section>
+        {memos.length > 0 && (
+          <section className="panel">
+            <div className="panel-title">맵 메모<span className="code">{memos.length}</span></div>
+            <ul className="divide-y divide-line text-xs">
+              {memos.map((m) => <li key={m.id} className="px-4 py-2"><Link href={`/community/logs/${m.id}`} className="hover:text-accent"><span className="tag mr-1">{m.node!.name}</span><b>{m.title}</b> <span className="text-fg-mute">{m.character.name} · ◆{m.post._count.reactions}</span></Link></li>)}
+            </ul>
+          </section>
+        )}
         <section className="panel">
           <div className="panel-title">최초 공개 기록<span className="code">{revealed.length}</span></div>
           <ul className="divide-y divide-line text-xs">
