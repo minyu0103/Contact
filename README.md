@@ -3,53 +3,79 @@
 세계관 속 "현실조작형 자동접촉 프로그램"을 그대로 화면으로 옮긴 웹 RPG입니다.
 구현 규칙은 `SPEC.md`, 세계관과 문구는 `GAME_DESIGN.md`를 따릅니다.
 
+1차 목표인 "가입 → 캐릭터 생성 → 고정 이계 탐사 → 맵 공개 → 보수로 상점 구매" 한 바퀴와,
+운영자가 코딩 없이 콘텐츠를 만드는 관리자 페이지가 모두 동작합니다.
+
 ## 기술 스택
 
-- Next.js (App Router, TypeScript, Server Actions) + Tailwind CSS
-- Prisma + PostgreSQL (개발은 로컬 Postgres, 배포 시 Supabase Postgres 접속 문자열로 교체)
+- Next.js 16 (App Router, TypeScript, Server Actions) + Tailwind CSS 4
+- Prisma 6 + PostgreSQL (개발은 로컬 Postgres, 배포 시 Supabase Postgres 접속 문자열로 교체)
 - 자체 세션 쿠키 인증 (아이디 + 비밀번호, 초대 코드 필수)
+- 이계 편집기: React Flow. 세계 지도: world-atlas(Natural Earth, 퍼블릭 도메인) 기반 SVG
+- 폰트: Pretendard Variable, JetBrains Mono (npm 패키지로 자체 호스팅)
 
 ## 실행 방법
 
 ```bash
 pnpm install
 cp .env.example .env            # DATABASE_URL, SESSION_SECRET, ADMIN_* 확인
-scripts/local-db.sh start       # 로컬 Postgres (이미 Postgres가 있으면 생략)
+scripts/local-db.sh start       # 로컬 Postgres 16 (이미 Postgres가 있으면 생략)
 pnpm db:migrate                 # 스키마 적용
-pnpm db:seed                    # 관리자 계정, 기본 아이템 5종, 초대 코드 발급
+pnpm db:seed                    # 관리자, 기본 아이템 5종, 초대 코드, 샘플 이계
 pnpm dev                        # http://localhost:3000
 ```
 
-- 관리자 계정: `.env`의 `ADMIN_LOGIN_ID` / `ADMIN_PASSWORD` (기본 admin / admin1234)
+- 관리자 계정: `.env`의 `ADMIN_LOGIN_ID` / `ADMIN_PASSWORD` (기본 admin / admin1234). 배포 전에 반드시 바꾸세요.
 - 시드 초대 코드: `WELCOME-0001` ~ `WELCOME-0005`
+- 샘플 이계 "구 성모요양병원" (노드 8, 연결 7)이 공개 상태로 들어 있습니다. 관리자 → 이계에서 고치거나 지울 수 있습니다.
+- 프로덕션 빌드: `pnpm build && pnpm start`
 
-## 디렉터리
+### 배포 (Supabase + Vercel)
+
+1. Supabase 프로젝트를 만들고 Postgres 접속 문자열을 `DATABASE_URL`에 넣습니다 (Prisma용 세션 풀러 주소 권장).
+2. `npx prisma migrate deploy`, `npx prisma db seed`를 한 번 실행합니다.
+3. Vercel에 환경 변수(`DATABASE_URL`, `SESSION_SECRET`, `ADMIN_LOGIN_ID`, `ADMIN_PASSWORD`)를 넣고 배포합니다.
+4. 프로필·아이템 이미지는 현재 서버 로컬(`public/uploads`)에 저장됩니다. Vercel처럼 파일 시스템이 유지되지 않는 환경에서는 `src/lib/upload.ts`의 `saveImage`를 Supabase Storage로 바꾸면 됩니다 (이 함수 하나만 교체).
+
+## 게임 규칙이 있는 곳
 
 | 경로 | 내용 |
 | --- | --- |
-| `prisma/schema.prisma` | 전체 데이터 모델 (2차 항목도 구조만 미리 포함) |
-| `prisma/seed.ts` | 초기 시드 |
-| `src/lib/game-config.ts` | 모든 "기본값" 수치 정의. 관리자 "게임 설정" 양식의 원본 |
-| `src/lib/rules.ts` | 침식률 단계, 배율, 페널티, 레벨업 등 규칙 계산 |
+| `src/lib/game-config.ts` | SPEC의 모든 "기본값" 수치 정의. 관리자 "게임 설정" 양식은 이 목록에서 자동 생성 |
+| `src/lib/rules.ts` | 침식률 단계, 정신력 배율, 체력 페널티, 숙련도 보정, 레벨업 필요량 |
+| `src/lib/engine/` | 탐사 엔진. `dice.ts` 주사위·가중치, `conditions.ts` 조건 평가, `engine.ts` 입장·진입·선택·이동·탈출·쓰러짐·정산·화면 뷰 |
+| `src/lib/content-types.ts` | 아이템 효과, 능력 효과, 결과 효과, 표시 조건 타입 정의 (새 타입은 여기 + 엔진 처리 추가) |
+| `src/lib/content-schemas.ts` | 위 타입들의 서버 검증 |
 | `src/lib/time.ts` | KST, 04:00 게임일 키, 다음 초기화 시각 |
-| `src/lib/auth.ts` | 세션, 로그인 확인 |
-| `src/lib/character.ts` | 일일 초기화(요청 시점에 늦게 적용) |
-| `src/app/(auth)` | 설치(가입), 접속(로그인) |
-| `src/app/create-character` | 유저 등록(캐릭터 생성, 능력 제출) |
-| `src/app/(game)` | 상태 표시줄이 있는 게임 화면들 |
-| `src/app/admin` | 관리자 페이지 (메뉴별 `page.tsx` + `actions.ts`) |
-| `src/lib/content-types.ts` | 아이템 효과, 능력 효과, 결과 효과, 표시 조건 등 운영자가 고르는 타입 정의 |
-| `src/lib/content-schemas.ts` | 위 타입들의 서버 검증 스키마 |
+| `src/lib/character.ts` | 일일 초기화 (요청 시점에 늦게 적용, 크론 불필요) |
 | `src/lib/realm-validate.ts` | 이계 오류 검사 |
-| `src/lib/engine/` | 탐사 엔진 (dice: 주사위, conditions: 조건 평가, engine: 입장·진입·선택·이동·탈출·쓰러짐·정산·화면 뷰) |
-| `src/app/(game)/explore` | 탐사 화면, 판정 결과, 런 종료 |
-| `src/app/(game)/map` | 세계 지도, 이계 정보와 입장 |
-| `prisma/seed-realm.ts` | 샘플 이계 "구 성모요양병원" 시드 |
+| `prisma/schema.prisma` | 데이터 모델 (2차 항목도 열거형 값으로 자리만 확보) |
+| `prisma/seed.ts`, `prisma/seed-realm.ts` | 초기 시드와 샘플 이계 |
 
-## 단계별 진행
+## 화면
 
-1. ✅ 골격, DB 스키마, 게임 설정, 초대 코드 가입·로그인, 캐릭터 생성, 홈
-2. ✅ 관리자 페이지 기본 메뉴 (대시보드, 아이템, 드랍 테이블, 유저, 능력 심사, 능력 태그, 초대 코드, 공지, 게임 설정, 변경 기록)
-3. ✅ 이계 편집기 (React Flow 노드 그래프, 노드·장면·선택지·효과 양식, 적대 존재 자동 생성, 오류 검사, 공개 초기화, 샘플 이계 시드)
-4. ✅ 탐사 엔진과 탐사 화면 (입장, 노드 진입·침식률, 이벤트, 조건, 판정·보정 내역, 효과, 탈출·쓰러짐, 보수·경험치·숙련도, 탐사기록, 세계 지도·이계 정보, 테스트 플레이)
-5. 지도, 상점, 유저 화면(설정·스탯 배분·능력·보관함 통합), 탐사기록, 대시보드, 마감
+| 경로 | 화면 |
+| --- | --- |
+| `/install`, `/login` | 설치(가입), 접속 |
+| `/create-character` | 유저 등록 (캐릭터 생성, 능력 제출 → 심사 중) |
+| `/home` | 공지, 상태 요약, 능력 심사 상태, 진행 중인 탐사 |
+| `/map`, `/map/[id]` | 세계 지도, 이계 정보(공개 노드 지도, 최초 공개자)와 입장 |
+| `/explore/[runId]` | 탐사, 판정 결과, 런 종료 |
+| `/shop` | 구매(잠긴 품목은 조건 표시), 회수 판매 |
+| `/character` | 수치, 스탯 배분, 능력과 효과, 보관함(런 밖 소모품 사용·버리기), 프로필 이미지, 비밀번호 |
+| `/records`, `/records/[runId]` | 내 탐사기록 목록과 상세(판정 주사위·보정·수치 변화) |
+| `/admin/...` | 대시보드, 이계 편집기(테스트 플레이 포함), 아이템, 드랍 테이블, 유저, 능력 심사, 능력 태그, 초대 코드, 공지, 게임 설정, 변경 기록 |
+
+## 구현 중 정한 것 (SPEC에 없던 세부)
+
+- 연결 통과 판정에 실패하면 제자리에 머물고 다시 시도할 수 있으며, 운영자가 실패 효과를 붙일 수 있다.
+- 런 안에서 같은 노드에 다시 들어가면 침식률은 오르지만 경험치·보수는 처음 한 번만 센다.
+- 이벤트 장면의 선택지를 처리하면 자동으로 기본 장면으로 돌아간다. 선택지 없는 이벤트는 "계속"으로 넘긴다.
+- 테스트 플레이는 관리자 계정의 캐릭터를 스냅샷으로 복사해 쓰고, 실제 캐릭터·행동력·서버 공개·보수에 손대지 않는다.
+- 탈출 시 보관함 칸이 모자라면 넘치는 아이템은 버려지고 런 종료 화면에 표시된다.
+- 결과 효과에 "직전 노드로 이동"을 추가했다 (적대 존재의 도주용).
+- 관리자도 캐릭터를 만들면 일반 유저처럼 플레이할 수 있다. 테스트 플레이에는 관리자 캐릭터가 필요하다.
+
+## 2차 이후
+
+SPEC의 "2차 이후 범위"를 그대로 따른다. 데이터 모델에는 장비·인스턴트·특수형 이계·제작 판정의 자리가 이미 있다.

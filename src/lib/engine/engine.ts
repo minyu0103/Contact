@@ -568,7 +568,7 @@ export async function consumeItemInRun(runId: string, itemId: string): Promise<A
 }
 
 /** 런 밖 소모품 사용 (보관함 화면) */
-export async function useItemOutside(characterId: string, itemId: string): Promise<Delta[]> {
+export async function consumeItemOutside(characterId: string, itemId: string): Promise<Delta[]> {
   const cfg = await getConfig();
   return db.$transaction(async (tx) => {
     const [c, inv, item] = await Promise.all([
