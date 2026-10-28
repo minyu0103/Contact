@@ -156,7 +156,8 @@ export type OutcomeEffect =
   | { type: "move"; nodeId: string }
   | { type: "move_back" }
   | { type: "reveal"; nodeId: string }
-  | { type: "escape" };
+  | { type: "escape" }
+  | { type: "seal" };
 
 export const OUTCOME_EFFECT_DEFS: { type: OutcomeEffect["type"]; label: string; help?: string }[] = [
   { type: "hp", label: "체력 ±n" },
@@ -173,6 +174,7 @@ export const OUTCOME_EFFECT_DEFS: { type: OutcomeEffect["type"]; label: string; 
   { type: "move_back", label: "직전 노드로 이동" },
   { type: "reveal", label: "노드 공개 (이동 없이)" },
   { type: "escape", label: "탈출" },
+  { type: "seal", label: "주인 토벌 (이계 봉합)", help: "인스턴트 이계에서 탈출하면 봉합되어 사라지고 봉합 보수를 받음" },
 ];
 
 /** 판정 목표치 도움말 */

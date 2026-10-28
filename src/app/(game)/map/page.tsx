@@ -4,13 +4,15 @@ import { requireCharacterUser } from "@/lib/auth";
 import { getConfig } from "@/lib/game-config";
 import { erosionStage } from "@/lib/rules";
 import { MapClient } from "./MapClient";
+import { ensureInstantSpawns } from "@/lib/instant";
 
 export default async function MapPage() {
   const { character } = await requireCharacterUser();
   const cfg = await getConfig();
   const stage = erosionStage(character.erosion, cfg);
-  const realms = await db.realm.findMany({ where: { isPublished: true }, orderBy: { createdAt: "asc" }, include: { _count: { select: { nodes: true } }, nodes: { where: { revealedAt: { not: null } }, select: { id: true } } } });
-  const markers = realms.map((r) => ({ id: r.id, x: r.mapX, y: r.mapY, label: r.name, progress: r._count.nodes ? Math.round((r.nodes.length / r._count.nodes) * 100) : 0 }));
+  await ensureInstantSpawns();
+  const realms = await db.realm.findMany({ where: { isPublished: true, isTemplate: false, sealedAt: null }, orderBy: { createdAt: "asc" }, include: { _count: { select: { nodes: true } }, nodes: { where: { revealedAt: { not: null } }, select: { id: true } } } });
+  const markers = realms.map((r) => ({ id: r.id, x: r.mapX, y: r.mapY, label: r.name, progress: r._count.nodes ? Math.round((r.nodes.length / r._count.nodes) * 100) : 0, active: r.kind === "INSTANT" }));
   const activeRun = await db.run.findFirst({ where: { characterId: character.id, status: "ACTIVE", isTest: false } });
   return (
     <div className="flex flex-col gap-4">
@@ -29,7 +31,7 @@ export default async function MapPage() {
             return (
               <li key={r.id} className="flex items-center gap-4 px-4 py-3">
                 <div className="min-w-0 flex-1">
-                  <Link href={`/map/${r.id}`} className="font-semibold hover:text-accent">{r.name}</Link>
+                  <Link href={`/map/${r.id}`} className="font-semibold hover:text-accent">{r.name}</Link>{r.kind === "INSTANT" && <span className="tag tag-warn ml-2">인스턴트 · 봉합 가능</span>}
                   <p className="help line-clamp-1">{r.intro}</p>
                   <div className="mt-1.5 flex items-center gap-2"><div className="gauge w-40"><div style={{ width: `${pct}%`, background: "var(--accent)" }} /></div><span className="mono text-xs text-fg-dim">탐사 진행도 {pct}%</span></div>
                 </div>

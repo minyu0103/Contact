@@ -138,3 +138,36 @@ export async function seedSampleRealm(db: PrismaClient) {
 
   console.log(`샘플 이계 "${NAME}" 생성 (노드 8, 연결 7)`);
 }
+
+/** 샘플 인스턴트 템플릿 "폐역 — 무너진 지하철역". 주인을 토벌하면 봉합된다. */
+export async function seedSampleInstantTemplate(db: PrismaClient) {
+  const NAME = "무너진 지하철역";
+  if (await db.realm.findFirst({ where: { name: NAME, isTemplate: true } })) { console.log(`샘플 템플릿 "${NAME}" 이미 있음`); return; }
+  const table = await db.dropTable.findFirst({ where: { name: "폐병원 잡동사니" } });
+  const realm = await db.realm.create({ data: { name: NAME, kind: "INSTANT", isTemplate: true, isPublished: true, spawnIntervalHours: 24, maxConcurrent: 2, mapX: 50, mapY: 50,
+    intro: "선로가 끊긴 폐역. 승강장 안내 방송이 아직도 나온다. '이번 역은, 이번 역은, 이번 역은.' 방송을 멈추는 무언가가 승강장 끝에 있다." } });
+  const mk = (name: string, depth: number, description: string, pos: [number, number], extra: Partial<Prisma.NodeUncheckedCreateInput> = {}) =>
+    db.node.create({ data: { realmId: realm.id, name, depth, description, posX: pos[0], posY: pos[1], ...extra } });
+  const gate = await mk("개찰구", 1, "녹슨 개찰구가 혼자 열렸다 닫혔다 한다. 전광판에는 도착 예정 시각 대신 당신의 침식률이 떠 있다.", [200, 0], { isExit: true });
+  const hall = await mk("대합실", 1, "의자마다 신문이 한 부씩 놓여 있다. 전부 2006년 7월 12일자. 1면은 백지다.", [200, 160]);
+  const platform = await mk("승강장", 2, "승강장. 안내 방송이 가까워진다. 선로 안쪽 어둠에서 열차 소리가 나는데 바람은 반대쪽에서 분다.", [200, 320], { rewardNew: 40 });
+  await db.realm.update({ where: { id: realm.id }, data: { startNodeId: gate.id } });
+  await db.edge.create({ data: { realmId: realm.id, fromId: gate.id, toId: hall.id } });
+  await db.edge.create({ data: { realmId: realm.id, fromId: hall.id, toId: platform.id } });
+  await db.scene.create({ data: { nodeId: gate.id, kind: "BASE", text: "" } });
+  const sHall = await db.scene.create({ data: { nodeId: hall.id, kind: "BASE", text: "" } });
+  const o1 = await db.outcome.create({ data: { text: "신문 더미 아래에서 쓸 만한 것을 찾았다.", effects: (table ? [{ type: "item_drop", tableId: table.id, rolls: 1 }] : []) as Prisma.InputJsonValue } });
+  const o1f = await db.outcome.create({ data: { text: "백지 신문에 글자가 떠올랐다. 당신 이름이었다.", effects: [{ type: "mp", value: -1 }] as Prisma.InputJsonValue } });
+  await db.choice.create({ data: { sceneId: sHall.id, text: "신문 더미를 뒤진다", checkType: "SEARCH", checkTarget: 6, oncePerRun: true, successOutcomeId: o1.id, failOutcomeId: o1f.id } });
+  await db.scene.create({ data: { nodeId: platform.id, kind: "BASE", text: "" } });
+  const ev = await db.scene.create({ data: { nodeId: platform.id, kind: "EVENT", name: "주인: 방송하는 것", text: "승강장 끝, 스피커 아래에 역무원 제복을 입은 것이 서 있다. 입이 없는데 방송은 그 몸에서 나온다. 이 역의 주인이다.", chance: 100, mandatory: true, sortOrder: 1 } });
+  const k1 = await db.outcome.create({ data: { text: "제복이 무너져 내리고 방송이 멈췄다. 역 전체가 조용해지며 공기가 바뀐다. 이계가 닫히기 시작한다. 개찰구로 돌아가 빠져나가야 한다.", effects: [{ type: "seal" }, { type: "points", value: 30 }] as Prisma.InputJsonValue } });
+  const k1f = await db.outcome.create({ data: { text: "방송이 귀를 찢었다. '이번 역은, 당신.'", effects: [{ type: "hp", value: -3 }, { type: "erosion", value: 3 }] as Prisma.InputJsonValue } });
+  await db.choice.create({ data: { sceneId: ev.id, text: "주인에게 맞선다", conditions: [{ type: "category", value: "COMBAT" }] as Prisma.InputJsonValue, lockedDisplay: "SHOW_LOCKED", checkType: "COMBAT", checkTarget: 8, oncePerRun: true, sortOrder: 0, successOutcomeId: k1.id, failOutcomeId: k1f.id } });
+  const k2 = await db.outcome.create({ data: { text: "스피커 배선을 찾아 끊었다. 방송이 멈추자 제복이 텅 빈 채 주저앉았다. 이계가 닫히기 시작한다.", effects: [{ type: "seal" }, { type: "points", value: 30 }] as Prisma.InputJsonValue } });
+  const k2f = await db.outcome.create({ data: { text: "배선을 잘못 건드렸다. 방송이 두 배로 커진다.", effects: [{ type: "mp", value: -2 }, { type: "erosion", value: 3 }] as Prisma.InputJsonValue } });
+  await db.choice.create({ data: { sceneId: ev.id, text: "스피커의 배선을 찾아 끊는다", checkType: "SEARCH", checkTarget: 8, oncePerRun: true, sortOrder: 1, successOutcomeId: k2.id, failOutcomeId: k2f.id } });
+  const k3 = await db.outcome.create({ data: { text: "대합실로 물러났다. 방송이 등 뒤를 따라온다.", effects: [{ type: "move_back" }] as Prisma.InputJsonValue } });
+  await db.choice.create({ data: { sceneId: ev.id, text: "물러난다", sortOrder: 2, successOutcomeId: k3.id } });
+  console.log(`샘플 템플릿 "${NAME}" 생성`);
+}

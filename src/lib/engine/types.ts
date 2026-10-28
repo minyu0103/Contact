@@ -48,6 +48,8 @@ export type RunSummary = {
   proficiencyBefore: number;
   proficiencyAfter: number;
   isTest: boolean;
+  sealed?: boolean;
+  sealReward?: number;
 };
 
 export type EngineCtx = {

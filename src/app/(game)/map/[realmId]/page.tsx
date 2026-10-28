@@ -13,7 +13,8 @@ export default async function RealmInfoPage({ params }: { params: Promise<{ real
   const { character } = await requireCharacterUser();
   const cfg = await getConfig();
   const realm = await db.realm.findUnique({ where: { id: realmId }, include: { nodes: { include: { revealedBy: { select: { name: true } } } }, edges: true } });
-  if (!realm || !realm.isPublished) notFound();
+  if (!realm || !realm.isPublished || realm.isTemplate) notFound();
+  const sealed = !!realm.sealedAt;
   const stage = erosionStage(character.erosion, cfg);
   const activeRun = await db.run.findFirst({ where: { characterId: character.id, status: "ACTIVE", isTest: false } });
   const knownIds = new Set(realm.nodes.filter((n) => n.revealedAt).map((n) => n.id));
@@ -32,6 +33,7 @@ export default async function RealmInfoPage({ params }: { params: Promise<{ real
       <section className="panel">
         <div className="panel-title">{realm.name}<span className="code">진행도 {pct}%</span></div>
         <div className="flex flex-col gap-4 p-4">
+          {realm.kind === "INSTANT" && <p className={`border px-3 py-2 text-sm ${sealed ? "border-line text-fg-dim" : "border-warn/40 bg-warn/8 text-warn"}`}>{sealed ? "봉합된 이계입니다. 더 이상 들어갈 수 없습니다." : "인스턴트 이계. 주인을 토벌하고 탈출하면 봉합되어 사라지고 봉합 보수를 받습니다."}</p>}
           <p className="whitespace-pre-wrap leading-relaxed">{realm.intro || "소개문이 없습니다."}</p>
           <div className="border border-line"><MiniMap nodes={miniNodes} edges={miniEdges} height={360} /></div>
           <p className="help">공개된 구역 {knownIds.size} / {realm.nodes.length}. 탈출에 성공해야 밝힌 구역이 모두에게 공유됩니다.</p>
@@ -44,6 +46,8 @@ export default async function RealmInfoPage({ params }: { params: Promise<{ real
             <p className="help">입장 시 행동력 1을 소모합니다. 현재 행동력 <span className="mono text-fg">{character.ap}</span>.</p>
             {activeRun ? (
               <Link href={`/explore/${activeRun.id}`} className="btn btn-primary btn-block">진행 중인 탐사로 돌아가기</Link>
+            ) : sealed ? (
+              <p className="help">봉합되었습니다.</p>
             ) : blocked ? (
               <p className="error">침식률이 위험 단계입니다. 입장이 차단되었습니다.</p>
             ) : (

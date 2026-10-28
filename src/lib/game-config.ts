@@ -83,6 +83,10 @@ export const SETTING_DEFS = [
   { key: "log.diaryMaxLength", label: "일기 로그 최대 글자 수", group: "로그", type: "number", default: 1000, min: 50 },
   { key: "log.memoThreshold", label: "맵 메모가 되는 공감 수", group: "로그", type: "number", default: 3, min: 1, help: "일기 로그의 공감이 이 수 이상이면 해당 구역에 메모로 표시" },
 
+  // 인스턴트 이계 (2차)
+  { key: "instant.sealReward", label: "봉합 보수 (P)", group: "인스턴트 이계", type: "number", default: 100, min: 0 },
+  { key: "instant.autoSpawn", label: "자동 생성 켜기", group: "인스턴트 이계", type: "boolean", default: true, help: "끄면 운영자가 '지금 생성'으로만 만든다" },
+
   // 능력
   { key: "ability.allowExploreWhilePending", label: "능력 심사 중에도 탐사 가능", group: "능력", type: "boolean", default: true },
 ] as const satisfies readonly SettingDef[];

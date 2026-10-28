@@ -194,6 +194,17 @@ model Realm {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  // 인스턴트 이계 (2차). 템플릿은 지도에 나오지 않고, 인스턴스가 복제되어 나온다.
+  isTemplate         Boolean   @default(false)
+  templateId         String?
+  template           Realm?    @relation("Instances", fields: [templateId], references: [id], onDelete: SetNull)
+  instances          Realm[]   @relation("Instances")
+  spawnIntervalHours Int       @default(24)
+  maxConcurrent      Int       @default(2)
+  lastSpawnAt        DateTime?
+  sealedAt           DateTime?
+  sealedById         String?
+
   nodes Node[]
   edges Edge[]
   runs  Run[]

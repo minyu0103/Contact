@@ -31,7 +31,7 @@ function serialize(rows: Row[]) {
       case "set_flag": return { type: r.type, flag: r.flag };
       case "goto_scene": return { type: r.type, sceneId: r.sceneId };
       case "move": case "reveal": return { type: r.type, nodeId: r.nodeId };
-      case "move_back": case "escape": return { type: r.type };
+      case "move_back": case "escape": case "seal": return { type: r.type };
     }
   });
 }

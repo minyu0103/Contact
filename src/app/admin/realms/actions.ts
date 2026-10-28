@@ -27,6 +27,9 @@ const infoSchema = z.object({
   mapY: z.coerce.number().min(0).max(100),
   startNodeId: z.string().min(1, "시작 노드를 고르세요."),
   isPublished: z.boolean(),
+  kind: z.enum(["FIXED", "INSTANT"]),
+  spawnIntervalHours: z.coerce.number().int().min(1).max(720),
+  maxConcurrent: z.coerce.number().int().min(1).max(20),
 });
 
 export async function saveRealmInfoAction(_prev: FormState, formData: FormData): Promise<FormState> {
@@ -35,11 +38,14 @@ export async function saveRealmInfoAction(_prev: FormState, formData: FormData):
   const parsed = infoSchema.safeParse({
     name: formData.get("name"), intro: formData.get("intro") ?? "", mapX: formData.get("mapX"), mapY: formData.get("mapY"),
     startNodeId: formData.get("startNodeId"), isPublished: formData.get("isPublished") === "on",
+    kind: formData.get("kind") ?? "FIXED", spawnIntervalHours: formData.get("spawnIntervalHours") || 24, maxConcurrent: formData.get("maxConcurrent") || 2,
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const node = await db.node.findFirst({ where: { id: parsed.data.startNodeId, realmId: id } });
   if (!node) return { error: "시작 노드가 이 이계의 노드가 아닙니다." };
-  await db.realm.update({ where: { id }, data: parsed.data });
+  const current = await db.realm.findUnique({ where: { id } });
+  if (current?.templateId) return { error: "인스턴스는 기본 정보를 바꿀 수 없습니다. 템플릿을 고치세요." };
+  await db.realm.update({ where: { id }, data: { ...parsed.data, isTemplate: parsed.data.kind === "INSTANT" } });
   await audit(admin.id, "realm.update", { type: "realm", id }, { name: parsed.data.name, isPublished: parsed.data.isPublished });
   revalidatePath(`/admin/realms/${id}`);
   revalidatePath("/map");
@@ -114,4 +120,30 @@ export async function deleteNodeAction(formData: FormData) {
   await audit(admin.id, "node.delete", { type: "node", id: nodeId }, { realm: realm.name, name: node.name });
   revalidatePath(`/admin/realms/${realmId}`);
   redirect(`/admin/realms/${realmId}`);
+}
+
+
+/** 템플릿에서 인스턴스를 지금 생성 */
+export async function spawnNowAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const templateId = String(formData.get("templateId") ?? "");
+  const { spawnInstance } = await import("@/lib/instant");
+  await spawnInstance(templateId, admin.id);
+  revalidatePath("/admin/realms");
+  revalidatePath("/map");
+}
+
+/** 인스턴스 제거 (진행 중 런은 강제 종료) */
+export async function removeInstanceAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  const realm = await db.realm.findUnique({ where: { id } });
+  if (!realm || !realm.templateId) return;
+  const { abortRun } = await import("@/lib/engine/engine");
+  const active = await db.run.findMany({ where: { realmId: id, status: "ACTIVE" } });
+  for (const r of active) await abortRun(r.id);
+  await db.realm.delete({ where: { id } });
+  await audit(admin.id, "instant.remove", { type: "realm", id }, { name: realm.name });
+  revalidatePath("/admin/realms");
+  revalidatePath("/map");
 }

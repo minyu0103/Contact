@@ -256,6 +256,7 @@ async function applyEffects(env: Env, effects: OutcomeEffect[], deltas: Delta[])
         break;
       }
       case "escape": nav.escape = true; break;
+      case "seal": if (!env.flags.includes("__sealed")) env.flags.push("__sealed"); deltas.push({ label: "봉합", text: "이계의 주인을 쓰러뜨렸다" }); break;
     }
   }
   return nav;
@@ -319,6 +320,11 @@ async function endRun(env: Env, status: "ESCAPED" | "FALLEN" | "ABORTED"): Promi
     if (!run.isTest) {
       // 서버 공개
       for (const id of env.revealed) await tx.node.updateMany({ where: { id, revealedAt: null }, data: { revealedAt: new Date(), revealedById: run.characterId } });
+      // 인스턴트 이계 봉합
+      if (env.flags.includes("__sealed") && run.realm.kind === "INSTANT" && !run.realm.isTemplate && !run.realm.sealedAt) {
+        await tx.realm.update({ where: { id: run.realmId }, data: { sealedAt: new Date(), sealedById: run.characterId } });
+        summary.sealed = true; summary.sealReward = cfg["instant.sealReward"]; summary.reward += cfg["instant.sealReward"];
+      }
       state.points += summary.reward;
       state.escapeCount += 1;
       // 보관함으로 옮기기 (칸 수 제한)
@@ -379,6 +385,8 @@ export async function startRun(characterId: string, realmId: string, opts: { isT
       await tx.run.updateMany({ where: { characterId, isTest: true, status: "ACTIVE" }, data: { status: "ABORTED", endedAt: new Date() } });
     } else {
       if (!realm.isPublished) throw new EngineError("아직 공개되지 않은 이계입니다.");
+      if (realm.isTemplate) throw new EngineError("템플릿 이계에는 직접 들어갈 수 없습니다.");
+      if (realm.sealedAt) throw new EngineError("이미 봉합된 이계입니다.");
       if (await tx.run.findFirst({ where: { characterId, status: "ACTIVE", isTest: false } })) throw new EngineError("진행 중인 탐사가 있습니다. 먼저 끝내세요.");
       if (character.ap <= 0) throw new EngineError("행동력이 없습니다. 04:00에 초기화됩니다.");
       if (erosionStage(character.erosion, cfg) === "DANGER") throw new EngineError("침식률이 위험 단계입니다. 이계 입장이 차단되었습니다.");

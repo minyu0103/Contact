@@ -25,6 +25,7 @@ const effectSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("move_back") }),
   z.object({ type: z.literal("reveal"), nodeId: z.string().min(1, "노드를 고르세요.") }),
   z.object({ type: z.literal("escape") }),
+  z.object({ type: z.literal("seal") }),
 ]);
 export const conditionListSchema = z.array(conditionSchema);
 export const effectListSchema = z.array(effectSchema);
