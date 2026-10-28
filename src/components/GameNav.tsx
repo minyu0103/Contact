@@ -6,9 +6,10 @@ import { usePathname } from "next/navigation";
 const ITEMS = [
   { href: "/home", label: "홈", code: "01" },
   { href: "/map", label: "지도", code: "02" },
-  { href: "/shop", label: "상점", code: "03" },
-  { href: "/character", label: "유저", code: "04" },
-  { href: "/records", label: "기록", code: "05" },
+  { href: "/community", label: "교류", code: "03" },
+  { href: "/shop", label: "상점", code: "04" },
+  { href: "/character", label: "유저", code: "05" },
+  { href: "/records", label: "기록", code: "06" },
 ];
 
 /** 데스크톱에서는 왼쪽 세로 메뉴, 휴대폰에서는 아래쪽 탭 바 */

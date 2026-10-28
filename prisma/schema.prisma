@@ -114,6 +114,8 @@ model Character {
   autoSuccessUsedToday Int    @default(0)
   teleportUsedToday    Int    @default(0)
   lastDailyResetKey    String @default("") // "YYYY-MM-DD" (KST 기준 게임일)
+  // 오늘 침식률 감소로 인정된 RP 댓글 수 (2차)
+  rpCountToday         Int    @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -121,6 +123,16 @@ model Character {
   inventory     InventoryItem[]
   runs          Run[]
   revealedNodes Node[]          @relation("RevealedBy")
+
+  // 커뮤니티 (2차)
+  posts        Post[]          @relation("PostAuthor")
+  comments     Comment[]       @relation("CommentAuthor")
+  reactions    Reaction[]
+  dmSent       DirectMessage[] @relation("DmFrom")
+  dmReceived   DirectMessage[] @relation("DmTo")
+  ledOrg       Organization?   @relation("OrgLeader")
+  orgMember    OrgMember?
+  orgInvites   OrgInvite[]
 }
 
 enum AbilityEffectType {
@@ -451,4 +463,123 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// ───────────────────────── 커뮤니티 (2차) ─────────────────────────
+
+enum PostKind {
+  TIMELINE  // SNS 타임라인 (짧은 글)
+  BOARD     // 게시판
+  ORG       // 조직 게시판
+}
+
+model Post {
+  id          String    @id @default(cuid())
+  kind        PostKind
+  authorId    String
+  author      Character @relation("PostAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  orgId       String?
+  org         Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  title       String    @default("")
+  body        String
+  isAnonymous Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  comments    Comment[]
+  reactions   Reaction[]
+
+  @@index([kind, createdAt])
+  @@index([orgId, createdAt])
+}
+
+model Comment {
+  id             String    @id @default(cuid())
+  postId         String
+  post           Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId       String
+  author         Character @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  body           String
+  isAnonymous    Boolean   @default(false)
+  // RP 댓글로 인정되어 침식률이 감소했는지
+  erosionApplied Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+
+  @@index([postId, createdAt])
+}
+
+model Reaction {
+  postId      String
+  post        Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  characterId String
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@id([postId, characterId])
+}
+
+model DirectMessage {
+  id        String    @id @default(cuid())
+  fromId    String
+  from      Character @relation("DmFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  toId      String
+  to        Character @relation("DmTo", fields: [toId], references: [id], onDelete: Cascade)
+  body      String
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([fromId, toId, createdAt])
+  @@index([toId, readAt])
+}
+
+model Organization {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  description String      @default("")
+  // 홍보 여부. false면 목록에 나오지 않는 비밀 조직
+  isPublic    Boolean     @default(true)
+  leaderId    String      @unique
+  leader      Character   @relation("OrgLeader", fields: [leaderId], references: [id], onDelete: Cascade)
+  createdAt   DateTime    @default(now())
+  members     OrgMember[]
+  invites     OrgInvite[]
+  posts       Post[]
+}
+
+model OrgMember {
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  characterId String       @unique // 한 사람은 한 조직에만
+  character   Character    @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  // 이름 옆에 조직 이름을 표시할지 (본인이 선택)
+  showBadge   Boolean      @default(true)
+  joinedAt    DateTime     @default(now())
+
+  @@id([orgId, characterId])
+}
+
+enum OrgInviteKind {
+  INVITE  // 수장이 보낸 영입 신청
+  APPLY   // 유저가 보낸 가입 신청
+}
+
+enum OrgInviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+model OrgInvite {
+  id          String          @id @default(cuid())
+  orgId       String
+  org         Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  characterId String
+  character   Character       @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  kind        OrgInviteKind
+  status      OrgInviteStatus @default(PENDING)
+  message     String          @default("")
+  createdAt   DateTime        @default(now())
+  decidedAt   DateTime?
+
+  @@index([characterId, status])
+  @@index([orgId, status])
 }

@@ -16,6 +16,7 @@ export async function applyDailyReset(character: Character, cfg?: GameConfig): P
     ap: config["char.dailyAp"],
     autoSuccessUsedToday: 0,
     teleportUsedToday: 0,
+    rpCountToday: 0,
     lastDailyResetKey: today,
   };
   if (config["char.dailyFullHeal"]) {

@@ -9,6 +9,7 @@ const ITEMS = [
   { href: "/admin/items", label: "아이템" },
   { href: "/admin/drop-tables", label: "드랍 테이블" },
   { href: "/admin/users", label: "유저" },
+  { href: "/admin/community", label: "커뮤니티" },
   { href: "/admin/abilities", label: "능력 심사" },
   { href: "/admin/tags", label: "능력 태그" },
   { href: "/admin/invites", label: "초대 코드" },

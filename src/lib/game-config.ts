@@ -71,6 +71,13 @@ export const SETTING_DEFS = [
   { key: "fallen.returnMp", label: "쓰러짐 귀환 정신력", group: "쓰러짐", type: "number", default: 1, min: 0 },
   { key: "fallen.lootLossRatio", label: "이번 런 획득 아이템 상실 비율", group: "쓰러짐", type: "number", default: 0.5, min: 0, max: 1, step: 0.1, help: "홀수면 내림" },
 
+  // 교류 (2차)
+  { key: "rp.erosionPerComment", label: "RP 댓글 1회당 침식률 감소", group: "교류", type: "number", default: 1, min: 0 },
+  { key: "rp.dailyLimit", label: "하루 인정 횟수", group: "교류", type: "number", default: 10, min: 0, help: "04:00 초기화" },
+  { key: "rp.minLength", label: "인정되는 댓글 최소 글자 수", group: "교류", type: "number", default: 20, min: 1 },
+  { key: "post.timelineMaxLength", label: "타임라인 글 최대 글자 수", group: "교류", type: "number", default: 280, min: 20 },
+  { key: "org.maxMembers", label: "조직 최대 인원", group: "교류", type: "number", default: 10, min: 1 },
+
   // 능력
   { key: "ability.allowExploreWhilePending", label: "능력 심사 중에도 탐사 가능", group: "능력", type: "boolean", default: true },
 ] as const satisfies readonly SettingDef[];

@@ -6,6 +6,7 @@ import { getConfig } from "@/lib/game-config";
 import { CATEGORY_LABEL, EROSION_STAGE_LABEL, erosionStage, levelUpRequirement } from "@/lib/rules";
 import { formatKst } from "@/lib/time";
 import { logoutAction } from "@/app/(auth)/actions";
+import { pendingOrgInviteCount, unreadDmCount } from "@/lib/community";
 
 const ABILITY_STATUS = {
   PENDING: { label: "심사 중", cls: "tag-warn", note: "운영자가 능력 서술을 검토하고 있습니다. 심사 중에도 탐사는 가능합니다." },
@@ -17,9 +18,12 @@ export default async function HomePage() {
   const { character: raw } = await requireCharacterUser();
   const cfg = await getConfig();
   const character = (await loadCharacter(raw.id, cfg)) ?? raw;
-  const [activeRun, notices] = await Promise.all([
+  const [activeRun, notices, unread, invites, latest] = await Promise.all([
     db.run.findFirst({ where: { characterId: character.id, status: "ACTIVE", isTest: false }, include: { realm: true } }),
     db.notice.findMany({ orderBy: [{ pinned: "desc" }, { createdAt: "desc" }], take: 5 }),
+    unreadDmCount(character.id),
+    pendingOrgInviteCount(character.id),
+    db.post.findMany({ where: { kind: "TIMELINE" }, orderBy: { createdAt: "desc" }, take: 3, include: { author: { select: { name: true } } } }),
   ]);
   const stage = erosionStage(character.erosion, cfg);
   const status = ABILITY_STATUS[character.abilityStatus];
@@ -118,6 +122,20 @@ export default async function HomePage() {
               <Link href="/map" className="btn">세계 지도 열기</Link>
             </>
           )}
+        </div>
+      </section>
+
+      <section className="panel lg:col-span-3">
+        <div className="panel-title">교류<span className="code">RP 댓글 오늘 {character.rpCountToday}/{cfg["rp.dailyLimit"]}</span></div>
+        <div className="flex flex-col gap-3 p-4 text-sm sm:flex-row sm:items-start">
+          <div className="flex flex-col gap-1.5">
+            <Link href="/community/dm" className="btn btn-sm">읽지 않은 대화 {unread > 0 && <span className="tag tag-warn">{unread}</span>}</Link>
+            <Link href="/community/org" className="btn btn-sm">조직 신청 {invites > 0 && <span className="tag tag-warn">{invites}</span>}</Link>
+          </div>
+          <ul className="flex-1 divide-y divide-line">
+            {latest.length === 0 && <li className="help">타임라인에 아직 글이 없습니다. 사람들과 어울리면 침식률이 내려갑니다.</li>}
+            {latest.map((p) => <li key={p.id} className="py-1.5"><Link href="/community/timeline" className="hover:text-accent"><b>{p.author.name}</b> <span className="text-fg-dim">{p.body.slice(0, 80)}</span></Link></li>)}
+          </ul>
         </div>
       </section>
 
