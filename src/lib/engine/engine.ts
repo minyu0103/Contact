@@ -2,6 +2,8 @@ import "server-only";
 import { Prisma } from "@prisma/client";
 import type { CheckType, PrismaClient } from "@prisma/client";
 import { db } from "@/lib/db";
+
+const TX_OPTS = { timeout: 20000, maxWait: 10000 };
 import { getConfig, type GameConfig } from "@/lib/game-config";
 import { applyErosionGain, erosionStage, hpPenalty, levelUpRequirement, proficiencyCheckTypeFor, proficiencyFromExp, CHECK_TYPE_LABEL } from "@/lib/rules";
 import type { Condition, OutcomeEffect, ItemEffect } from "@/lib/content-types";
@@ -389,15 +391,16 @@ export async function startRun(characterId: string, realmId: string, opts: { isT
     await enterNode(env, realm.startNodeId, null, deltas);
     await persist(env, { lastResult: Prisma.DbNull });
     return created.id;
-  });
+  }, TX_OPTS);
 }
 
 export type ActionResult = { ended?: boolean };
 
 /** 현재 장면의 선택지를 고른다 */
 export async function chooseAction(runId: string, choiceId: string, useAuto: boolean): Promise<ActionResult> {
+  const cfg = await getConfig();
   return db.$transaction(async (tx) => {
-    const env = await loadEnv(tx, runId);
+    const env = await loadEnv(tx, runId, cfg);
     const { run } = env;
     if (run.status !== "ACTIVE" || !run.currentNodeId) throw new EngineError("진행 중인 런이 아닙니다.");
     const node = await loadNode(tx, run.currentNodeId);
@@ -421,7 +424,7 @@ export async function chooseAction(runId: string, choiceId: string, useAuto: boo
 
     const result: LastResult = { kind: "choice", title: choice.text, check, text, deltas };
     return finishAction(env, node, scene.kind === "EVENT", nav, result);
-  });
+  }, TX_OPTS);
 }
 
 /** 효과 적용 뒤 공통 마무리: 쓰러짐, 이동, 장면 전환, 탈출 */
@@ -452,8 +455,9 @@ async function finishAction(env: Env, node: NodeRow, inEvent: boolean, nav: Nav,
 
 /** 연결을 따라 이동한다 */
 export async function moveAction(runId: string, edgeId: string): Promise<ActionResult> {
+  const cfg = await getConfig();
   return db.$transaction(async (tx) => {
-    const env = await loadEnv(tx, runId);
+    const env = await loadEnv(tx, runId, cfg);
     const { run } = env;
     if (run.status !== "ACTIVE" || !run.currentNodeId) throw new EngineError("진행 중인 런이 아닙니다.");
     const node = await loadNode(tx, run.currentNodeId);
@@ -479,13 +483,14 @@ export async function moveAction(runId: string, edgeId: string): Promise<ActionR
     const result: LastResult = { kind: "move", title: `→ ${known ? target?.name : "???"}`, check, text: "", deltas };
     const r = await finishAction(env, node, false, { moveTo: targetId }, result);
     return r;
-  });
+  }, TX_OPTS);
 }
 
 /** 출구 노드에서 탈출 */
 export async function escapeAction(runId: string): Promise<ActionResult> {
+  const cfg = await getConfig();
   return db.$transaction(async (tx) => {
-    const env = await loadEnv(tx, runId);
+    const env = await loadEnv(tx, runId, cfg);
     const { run } = env;
     if (run.status !== "ACTIVE" || !run.currentNodeId) throw new EngineError("진행 중인 런이 아닙니다.");
     const node = await loadNode(tx, run.currentNodeId);
@@ -494,20 +499,21 @@ export async function escapeAction(runId: string): Promise<ActionResult> {
     if (scene?.kind === "EVENT" && scene.choices.length > 0) throw new EngineError("이벤트를 먼저 처리해야 합니다.");
     await endRun(env, "ESCAPED");
     return { ended: true };
-  });
+  }, TX_OPTS);
 }
 
 /** 선택지 없는 이벤트 장면을 넘긴다 */
 export async function continueAction(runId: string): Promise<ActionResult> {
+  const cfg = await getConfig();
   return db.$transaction(async (tx) => {
-    const env = await loadEnv(tx, runId);
+    const env = await loadEnv(tx, runId, cfg);
     const { run } = env;
     if (run.status !== "ACTIVE" || !run.currentNodeId) throw new EngineError("진행 중인 런이 아닙니다.");
     const node = await loadNode(tx, run.currentNodeId);
     run.currentSceneId = node.scenes.find((s) => s.kind === "BASE")?.id ?? null;
     await persist(env, { lastResult: Prisma.DbNull });
     return {};
-  });
+  }, TX_OPTS);
 }
 
 /** 판정 결과 화면의 "계속" */
@@ -517,8 +523,9 @@ export async function ackResultAction(runId: string) {
 
 /** 공간 이동 능력 */
 export async function teleportAction(runId: string, nodeId: string): Promise<ActionResult> {
+  const cfg = await getConfig();
   return db.$transaction(async (tx) => {
-    const env = await loadEnv(tx, runId);
+    const env = await loadEnv(tx, runId, cfg);
     const { run } = env;
     if (run.status !== "ACTIVE" || !run.currentNodeId) throw new EngineError("진행 중인 런이 아닙니다.");
     if (teleportRemaining(env) <= 0) throw new EngineError("오늘 공간 이동 횟수를 다 썼습니다.");
@@ -532,13 +539,14 @@ export async function teleportAction(runId: string, nodeId: string): Promise<Act
     const deltas: Delta[] = [];
     env.logs.push({ type: "teleport", nodeId: node.id, choiceText: `공간 이동 → ${target.name}`, text: "", deltas });
     return finishAction(env, node, false, { moveTo: nodeId }, { kind: "teleport", title: `공간 이동 → ${target.name}`, check: null, text: "공간이 접히며 눈앞의 풍경이 바뀌었다.", deltas });
-  });
+  }, TX_OPTS);
 }
 
 /** 런 중 소모품 사용 */
 export async function consumeItemInRun(runId: string, itemId: string): Promise<ActionResult> {
+  const cfg = await getConfig();
   return db.$transaction(async (tx) => {
-    const env = await loadEnv(tx, runId);
+    const env = await loadEnv(tx, runId, cfg);
     const { run } = env;
     if (run.status !== "ACTIVE" || !run.currentNodeId) throw new EngineError("진행 중인 런이 아닙니다.");
     const item = await tx.item.findUnique({ where: { id: itemId } });
@@ -564,7 +572,7 @@ export async function consumeItemInRun(runId: string, itemId: string): Promise<A
     const node = await loadNode(tx, run.currentNodeId);
     env.logs.push({ type: "item", nodeId: node.id, choiceText: `${item.name} 사용`, text: "", deltas });
     return finishAction(env, node, false, nav, { kind: "item", title: `${item.name} 사용`, check: null, text: item.description, deltas });
-  });
+  }, TX_OPTS);
 }
 
 /** 런 밖 소모품 사용 (보관함 화면) */
@@ -592,28 +600,30 @@ export async function consumeItemOutside(characterId: string, itemId: string): P
     await tx.character.update({ where: { id: characterId }, data });
     if (inv.qty === 1) await tx.inventoryItem.delete({ where: { id: inv.id } }); else await tx.inventoryItem.update({ where: { id: inv.id }, data: { qty: inv.qty - 1 } });
     return deltas;
-  });
+  }, TX_OPTS);
 }
 
 /** 이번 런 획득 아이템 버리기 */
 export async function discardLootAction(runId: string, itemId: string) {
+  const cfg = await getConfig();
   await db.$transaction(async (tx) => {
-    const env = await loadEnv(tx, runId);
+    const env = await loadEnv(tx, runId, cfg);
     if (env.run.status !== "ACTIVE") throw new EngineError("진행 중인 런이 아닙니다.");
     const e = env.loot.find((l) => l.itemId === itemId);
     if (!e) return;
     env.loot = env.loot.filter((l) => l !== e);
     await persist(env);
-  });
+  }, TX_OPTS);
 }
 
 /** 관리자 강제 종료 (유저 관리 화면에서 호출) */
 export async function abortRun(runId: string) {
+  const cfg = await getConfig();
   await db.$transaction(async (tx) => {
-    const env = await loadEnv(tx, runId);
+    const env = await loadEnv(tx, runId, cfg);
     if (env.run.status !== "ACTIVE") return;
     await endRun(env, "ABORTED");
-  });
+  }, TX_OPTS);
 }
 
 // ───────────────────────── 화면용 뷰 ─────────────────────────
