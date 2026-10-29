@@ -469,6 +469,7 @@ model ExplorationLog {
   adminComment String    @default("")
   createdAt    DateTime  @default(now())
   reviewedAt   DateTime?
+  archiveEntry ArchiveEntry?
 
   @@unique([runId, kind])
   @@index([realmId, nodeId])
@@ -643,4 +644,42 @@ model OrgInvite {
 
   @@index([characterId, status])
   @@index([orgId, status])
+}
+
+// ───────────────────────── 도감 (2차) ─────────────────────────
+
+enum ArchiveCategory {
+  REALM     // 이계
+  CREATURE  // 이계 생물
+  INFECTED  // 감염물
+}
+
+model ArchiveEntry {
+  id           String          @id @default(cuid())
+  category     ArchiveCategory
+  code         String          @default("") // 문서 번호 (예: ARC-017)
+  title        String
+  summary      String          @default("")
+  imageUrl     String?
+  isPublished  Boolean         @default(false)
+  sortOrder    Int             @default(0)
+  // 채택한 로그 (작성자 이름 표시)
+  adoptedLogId String?         @unique
+  adoptedLog   ExplorationLog? @relation(fields: [adoptedLogId], references: [id], onDelete: SetNull)
+  stages       ArchiveStage[]
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+}
+
+model ArchiveStage {
+  id         String       @id @default(cuid())
+  entryId    String
+  entry      ArchiveEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  sortOrder  Int          @default(0)
+  title      String       @default("")
+  body       String       @default("")
+  // 해금 조건 목록. 비어 있으면 누구나. [{type:"flag",flag},{type:"realm_escapes",realmId,count},{type:"item",itemId}]
+  conditions Json         @default("[]")
+  // 잠겨 있을 때 보여 줄 힌트
+  hint       String       @default("")
 }

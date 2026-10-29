@@ -6,10 +6,11 @@ import { ActionForm } from "@/components/ActionForm";
 import { formatKst } from "@/lib/time";
 import { reviewLogAction } from "../actions";
 import { ReviewButtons } from "./ReviewButtons";
+import { createEntryFromLogAction } from "@/app/admin/archive/actions";
 
 export default async function AdminLogReviewPage({ params }: { params: Promise<{ logId: string }> }) {
   const { logId } = await params;
-  const log = await db.explorationLog.findUnique({ where: { id: logId }, include: { character: true, realm: true, node: true, run: { select: { id: true, startedAt: true, hadCamera: true } } } });
+  const log = await db.explorationLog.findUnique({ where: { id: logId }, include: { character: true, realm: true, node: true, run: { select: { id: true, startedAt: true, hadCamera: true } }, archiveEntry: true } });
   if (!log) notFound();
   return (
     <div>
@@ -37,6 +38,21 @@ export default async function AdminLogReviewPage({ params }: { params: Promise<{
             </ActionForm>
           </div>
         </section>
+        {log.kind === "CAMERA" && log.status === "APPROVED" && (
+          <section className="panel self-start lg:col-start-2">
+            <div className="panel-title">도감 채택</div>
+            <div className="p-4 text-sm">
+              {log.archiveEntry ? <p>이미 채택됨: <Link href={`/admin/archive/${log.archiveEntry.id}`} className="text-accent">{log.archiveEntry.title}</Link></p> : (
+                <form action={createEntryFromLogAction} className="flex items-center gap-2">
+                  <input type="hidden" name="logId" value={log.id} />
+                  <select name="category" className="select w-auto"><option value="REALM">이계</option><option value="CREATURE">이계 생물</option><option value="INFECTED">감염물</option></select>
+                  <button className="btn btn-sm" type="submit">이 로그로 문서 만들기</button>
+                </form>
+              )}
+              <p className="help mt-2">본문이 1단계로 들어가고 작성자 이름이 문서에 남습니다. 만든 뒤 비공개 상태에서 다듬어 공개하세요.</p>
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );

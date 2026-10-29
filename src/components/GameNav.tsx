@@ -7,9 +7,10 @@ const ITEMS = [
   { href: "/home", label: "홈", code: "01" },
   { href: "/map", label: "지도", code: "02" },
   { href: "/community", label: "교류", code: "03" },
-  { href: "/shop", label: "상점", code: "04" },
-  { href: "/character", label: "유저", code: "05" },
-  { href: "/records", label: "기록", code: "06" },
+  { href: "/archive", label: "도감", code: "04" },
+  { href: "/shop", label: "상점", code: "05" },
+  { href: "/character", label: "유저", code: "06" },
+  { href: "/records", label: "기록", code: "07" },
 ];
 
 /** 데스크톱에서는 왼쪽 세로 메뉴, 휴대폰에서는 아래쪽 탭 바 */
