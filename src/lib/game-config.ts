@@ -93,6 +93,9 @@ export const SETTING_DEFS = [
   { key: "craft.productionExtractBonus", label: "생산형 추출 성공률 보너스 (%p)", group: "생산", type: "number", default: 20, min: 0, max: 100 },
   { key: "craft.productionMaxFactors", label: "생산형이 섞을 수 있는 인자 수", group: "생산", type: "number", default: 2, min: 1, max: 4 },
 
+  // 거래 (2차)
+  { key: "trade.maxOpenListings", label: "한 사람이 동시에 올릴 수 있는 거래 글", group: "거래", type: "number", default: 5, min: 1 },
+
   // 능력
   { key: "ability.allowExploreWhilePending", label: "능력 심사 중에도 탐사 가능", group: "능력", type: "boolean", default: true },
 ] as const satisfies readonly SettingDef[];

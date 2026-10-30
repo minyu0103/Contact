@@ -135,6 +135,10 @@ model Character {
   orgInvites   OrgInvite[]
   explorationLogs ExplorationLog[]
   equipment    EquippedItem[]
+  tradesAuthored TradeListing[] @relation("TradeAuthor")
+  tradesTaken    TradeListing[] @relation("TradeCounterparty")
+  auctionsWon    Auction[]      @relation("AuctionWinner")
+  bids           Bid[]
 }
 
 enum AbilityEffectType {
@@ -354,6 +358,9 @@ model Item {
   equipped    EquippedItem[]
   recipesBase   Recipe[] @relation("RecipeBase")
   recipesResult Recipe[] @relation("RecipeResult")
+  tradeOffers   TradeListing[] @relation("TradeOffer")
+  tradeAsks     TradeListing[] @relation("TradeAsk")
+  auctions      Auction[]
 }
 
 // ───────────────────────── 생산 (2차) ─────────────────────────
@@ -573,6 +580,7 @@ enum PostKind {
   BOARD     // 게시판
   ORG       // 조직 게시판
   LOG       // 탐사 로그에 딸린 댓글·공감용
+  TRADE     // 거래 게시글에 딸린 댓글(흥정)용
 }
 
 model Post {
@@ -590,6 +598,7 @@ model Post {
   comments    Comment[]
   reactions   Reaction[]
   log         ExplorationLog?
+  trade       TradeListing?
 
   @@index([kind, createdAt])
   @@index([orgId, createdAt])
@@ -723,4 +732,87 @@ model ArchiveStage {
   conditions Json         @default("[]")
   // 잠겨 있을 때 보여 줄 힌트
   hint       String       @default("")
+}
+
+
+// ───────────────────────── 거래 (2차) ─────────────────────────
+
+enum TradeKind {
+  SELL     // 유저 간 매매: 아이템을 P에 판다
+  BARTER   // 물물교환: 아이템과 아이템
+  REQUEST  // 주문 제작 의뢰: P를 걸고 물건을 받는다
+}
+
+enum TradeStatus {
+  OPEN
+  DONE
+  CANCELLED
+}
+
+model TradeListing {
+  id             String      @id @default(cuid())
+  kind           TradeKind
+  status         TradeStatus @default(OPEN)
+  authorId       String
+  author         Character   @relation("TradeAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  title          String
+  body           String      @default("")
+  // 내놓는 것 (SELL·BARTER: 보관 중인 아이템)
+  offerItemId    String?
+  offerItem      Item?       @relation("TradeOffer", fields: [offerItemId], references: [id], onDelete: Cascade)
+  offerQty       Int         @default(1)
+  // 원하는 것
+  askPoints      Int         @default(0) // SELL: 가격, REQUEST: 보수(보관됨)
+  askItemId      String?
+  askItem        Item?       @relation("TradeAsk", fields: [askItemId], references: [id], onDelete: Cascade)
+  askQty         Int         @default(1)
+  // 성사 상대와 납품 물건
+  counterpartyId String?
+  counterparty   Character?  @relation("TradeCounterparty", fields: [counterpartyId], references: [id], onDelete: SetNull)
+  deliveredItemId String?
+  postId         String      @unique
+  post           Post        @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt      DateTime    @default(now())
+  closedAt       DateTime?
+
+  @@index([status, createdAt])
+}
+
+enum AuctionStatus {
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+model Auction {
+  id           String        @id @default(cuid())
+  title        String
+  body         String        @default("")
+  itemId       String
+  item         Item          @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  qty          Int           @default(1)
+  startPrice   Int           @default(100)
+  minIncrement Int           @default(10)
+  endsAt       DateTime
+  status       AuctionStatus @default(OPEN)
+  winnerId     String?
+  winner       Character?    @relation("AuctionWinner", fields: [winnerId], references: [id], onDelete: SetNull)
+  finalPrice   Int?
+  createdById  String?
+  createdAt    DateTime      @default(now())
+  bids         Bid[]
+
+  @@index([status, endsAt])
+}
+
+model Bid {
+  id          String    @id @default(cuid())
+  auctionId   String
+  auction     Auction   @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  characterId String
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  amount      Int
+  createdAt   DateTime  @default(now())
+
+  @@index([auctionId, amount])
 }

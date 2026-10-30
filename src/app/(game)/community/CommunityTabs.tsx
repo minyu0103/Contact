@@ -9,6 +9,7 @@ export function CommunityTabs({ unread, invites }: { unread: number; invites: nu
     { href: "/community/timeline", label: "타임라인" },
     { href: "/community/board", label: "게시판" },
     { href: "/community/logs", label: "로그" },
+    { href: "/community/trade", label: "거래" },
     { href: "/community/dm", label: "대화", badge: unread },
     { href: "/community/org", label: "조직", badge: invites },
   ];
