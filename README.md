@@ -32,10 +32,15 @@ pnpm dev                        # http://localhost:3000
 
 ### 배포 (Supabase + Vercel)
 
-1. Supabase 프로젝트를 만들고 Postgres 접속 문자열을 `DATABASE_URL`에 넣습니다 (Prisma용 세션 풀러 주소 권장).
-2. `npx prisma migrate deploy`, `npx prisma db seed`를 한 번 실행합니다.
-3. Vercel에 환경 변수(`DATABASE_URL`, `SESSION_SECRET`, `ADMIN_LOGIN_ID`, `ADMIN_PASSWORD`)를 넣고 배포합니다.
-4. 프로필·아이템 이미지는 현재 서버 로컬(`public/uploads`)에 저장됩니다. Vercel처럼 파일 시스템이 유지되지 않는 환경에서는 `src/lib/upload.ts`의 `saveImage`를 Supabase Storage로 바꾸면 됩니다 (이 함수 하나만 교체).
+1. Supabase 프로젝트를 만들고 Storage에 공개 버킷 `uploads`를 만듭니다.
+2. 환경 변수:
+   - `DATABASE_URL`: Transaction pooler 주소(포트 6543)에 `?pgbouncer=true&connection_limit=1`을 붙인 것
+   - `DIRECT_URL`: Session pooler 주소(포트 5432). 마이그레이션에 씁니다
+   - `SESSION_SECRET`: 긴 무작위 문자열
+   - `ADMIN_LOGIN_ID`, `ADMIN_PASSWORD`: 첫 관리자 계정 (시드에서 생성)
+   - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_BUCKET=uploads`: 이미지 저장소
+3. 로컬에서 위 변수를 `.env`에 넣고 `npx prisma migrate deploy && npx prisma db seed`를 한 번 실행합니다.
+4. Vercel에 저장소를 연결하고 같은 환경 변수를 넣어 배포합니다. 빌드 명령은 기본값(`next build`)이며 `postinstall`에서 Prisma 클라이언트가 생성됩니다.
 
 ## 게임 규칙이 있는 곳
 

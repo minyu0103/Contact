@@ -6,8 +6,10 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // 마이그레이션용 직접 접속 (풀러를 거치지 않음). 로컬에서는 DATABASE_URL과 같아도 된다.
+  directUrl = env("DIRECT_URL")
 }
 
 // ───────────────────────── 계정 ─────────────────────────
