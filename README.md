@@ -34,7 +34,7 @@ pnpm dev                        # http://localhost:3000
 
 1. Supabase 프로젝트를 만들고 Storage에 공개 버킷 `uploads`를 만듭니다.
 2. 환경 변수:
-   - `DATABASE_URL`: Transaction pooler 주소(포트 6543)에 `?pgbouncer=true&connection_limit=1`을 붙인 것
+   - `DATABASE_URL`: Transaction pooler 주소(포트 6543)에 `?pgbouncer=true`?pgbouncer=true&connection_limit=1`을 붙인 것connection_limit=5`?pgbouncer=true&connection_limit=1`을 붙인 것pool_timeout=20`을 붙인 것 (연결 1개 제한은 동시 질의가 막혀 시간 초과가 남)
    - `DIRECT_URL`: Session pooler 주소(포트 5432). 마이그레이션에 씁니다
    - `SESSION_SECRET`: 긴 무작위 문자열
    - `ADMIN_LOGIN_ID`, `ADMIN_PASSWORD`: 첫 관리자 계정 (시드에서 생성)
