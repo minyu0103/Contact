@@ -142,6 +142,8 @@ model Character {
   auctionsWon    Auction[]      @relation("AuctionWinner")
   bids           Bid[]
   specialApplications SpecialApplication[]
+  ledParties     Party[]        @relation("PartyLeader")
+  partyMemberships PartyMember[]
 }
 
 enum AbilityEffectType {
@@ -220,6 +222,7 @@ model Realm {
   edges Edge[]
   runs  Run[]
   explorationLogs ExplorationLog[]
+  parties Party[]
 }
 
 model Node {
@@ -477,6 +480,9 @@ model Run {
   summary         Json?
   // 입장 시 이계용 비디오 카메라를 지니고 있었는지 (카메라 로그 작성 조건)
   hadCamera       Boolean @default(false)
+  // 공동 탐사 (2차): 파티 런이면 파티 id. characterId는 파티장
+  partyId         String? @unique
+  party           Party?  @relation(fields: [partyId], references: [id], onDelete: SetNull)
   logs2           ExplorationLog[]
 
   startedAt DateTime  @default(now())
@@ -889,4 +895,44 @@ model StoryEvent {
   firedAt        DateTime?
   sortOrder      Int                @default(0)
   createdAt      DateTime           @default(now())
+}
+
+
+// ───────────────────────── 공동 탐사 (2차) ─────────────────────────
+
+enum PartyStatus {
+  FORMING  // 모집 중
+  ACTIVE   // 탐사 중
+  ENDED
+}
+
+enum PartyMemberStatus {
+  INVITED
+  JOINED
+  LEFT
+  FALLEN   // 런 중 쓰러져 이탈
+}
+
+model Party {
+  id        String        @id @default(cuid())
+  leaderId  String
+  leader    Character     @relation("PartyLeader", fields: [leaderId], references: [id], onDelete: Cascade)
+  realmId   String
+  realm     Realm         @relation(fields: [realmId], references: [id], onDelete: Cascade)
+  status    PartyStatus   @default(FORMING)
+  createdAt DateTime      @default(now())
+  members   PartyMember[]
+  run       Run?
+}
+
+model PartyMember {
+  partyId     String
+  party       Party             @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  characterId String
+  character   Character         @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  status      PartyMemberStatus @default(INVITED)
+  joinedAt    DateTime          @default(now())
+
+  @@id([partyId, characterId])
+  @@index([characterId, status])
 }

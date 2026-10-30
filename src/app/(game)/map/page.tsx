@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
+import { findActiveRunFor } from "@/lib/party";
 import { requireCharacterUser } from "@/lib/auth";
 import { getConfig } from "@/lib/game-config";
 import { erosionStage } from "@/lib/rules";
@@ -15,7 +16,7 @@ export default async function MapPage() {
   await ensureStoryEvents();
   const realms = await db.realm.findMany({ where: { isPublished: true, isTemplate: false, sealedAt: null, OR: [{ kind: { not: "SPECIAL" } }, { applicantId: null }, { applicantId: character.id }] }, orderBy: { createdAt: "asc" }, include: { _count: { select: { nodes: true } }, nodes: { where: { revealedAt: { not: null } }, select: { id: true } } } });
   const markers = realms.map((r) => ({ id: r.id, x: r.mapX, y: r.mapY, label: r.name, progress: r._count.nodes ? Math.round((r.nodes.length / r._count.nodes) * 100) : 0, active: r.kind === "INSTANT" }));
-  const activeRun = await db.run.findFirst({ where: { characterId: character.id, status: "ACTIVE", isTest: false } });
+  const activeRun = await findActiveRunFor(character.id);
   return (
     <div className="flex flex-col gap-4">
       {stage === "WARNING" && <p className="border border-warn/40 bg-warn/8 px-4 py-2 text-sm text-warn">경고 단계: 일부 이계 정보가 차단됩니다.</p>}

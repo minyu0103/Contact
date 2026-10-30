@@ -100,6 +100,10 @@ export const SETTING_DEFS = [
   { key: "special.maxPending", label: "한 사람의 동시 심사 중 신청 수", group: "특수형 이계", type: "number", default: 1, min: 1 },
   { key: "special.defaultReward", label: "승인 시 기본 보수 (P, 심사 화면 기본값)", group: "특수형 이계", type: "number", default: 300, min: 0 },
 
+  // 공동 탐사 (2차)
+  { key: "coop.maxMembers", label: "파티 최대 인원", group: "공동 탐사", type: "number", default: 4, min: 2, max: 8 },
+  { key: "coop.erosionReduce", label: "공동 탐사 탈출 성공 시 전원 침식률 감소", group: "공동 탐사", type: "number", default: 5, min: 0 },
+
   // 능력
   { key: "ability.allowExploreWhilePending", label: "능력 심사 중에도 탐사 가능", group: "능력", type: "boolean", default: true },
 ] as const satisfies readonly SettingDef[];

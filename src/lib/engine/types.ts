@@ -50,6 +50,8 @@ export type RunSummary = {
   isTest: boolean;
   sealed?: boolean;
   sealReward?: number;
+  partyMembers?: number;
+  coopErosionReduce?: number;
 };
 
 export type EngineCtx = {

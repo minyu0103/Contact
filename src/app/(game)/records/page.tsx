@@ -8,7 +8,7 @@ const STATUS = { ACTIVE: { label: "진행 중", cls: "tag-accent" }, ESCAPED: { 
 
 export default async function RecordsPage() {
   const { character } = await requireCharacterUser();
-  const runs = await db.run.findMany({ where: { characterId: character.id, isTest: false }, orderBy: { startedAt: "desc" }, include: { realm: true, _count: { select: { logs: true } } } });
+  const runs = await db.run.findMany({ where: { isTest: false, OR: [{ characterId: character.id }, { party: { members: { some: { characterId: character.id, status: { in: ["JOINED", "FALLEN"] } } } } }] }, orderBy: { startedAt: "desc" }, include: { realm: true, _count: { select: { logs: true } } } });
   return (
     <section className="panel">
       <div className="panel-title">내 탐사기록<span className="code">{runs.length} RUNS</span></div>

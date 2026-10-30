@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { findActiveRunFor } from "@/lib/party";
 import { requireCharacterUser } from "@/lib/auth";
 import { getConfig } from "@/lib/game-config";
 import { erosionStage } from "@/lib/rules";
 import { MiniMap } from "@/components/MiniMap";
 import { formatKst } from "@/lib/time";
 import { EnterForm } from "./EnterForm";
+import { PartyPanel } from "./party/PartyPanel";
 
 export default async function RealmInfoPage({ params }: { params: Promise<{ realmId: string }> }) {
   const { realmId } = await params;
@@ -17,7 +19,7 @@ export default async function RealmInfoPage({ params }: { params: Promise<{ real
   if (realm.kind === "SPECIAL" && realm.applicantId && realm.applicantId !== character.id) notFound();
   const sealed = !!realm.sealedAt;
   const stage = erosionStage(character.erosion, cfg);
-  const activeRun = await db.run.findFirst({ where: { characterId: character.id, status: "ACTIVE", isTest: false } });
+  const activeRun = await findActiveRunFor(character.id);
   const knownIds = new Set(realm.nodes.filter((n) => n.revealedAt).map((n) => n.id));
   const showIds = new Set(knownIds);
   for (const e of realm.edges) { if (knownIds.has(e.fromId)) showIds.add(e.toId); if (knownIds.has(e.toId) && e.bidirectional) showIds.add(e.fromId); }
@@ -57,6 +59,7 @@ export default async function RealmInfoPage({ params }: { params: Promise<{ real
             <Link href="/map" className="btn btn-ghost btn-sm">← 세계 지도</Link>
           </div>
         </section>
+        {!activeRun && !blocked && !sealed && <PartyPanel realmId={realm.id} characterId={character.id} />}
         {memos.length > 0 && (
           <section className="panel">
             <div className="panel-title">맵 메모<span className="code">{memos.length}</span></div>

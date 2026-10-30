@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
+import { findActiveRunFor } from "@/lib/party";
 import { requireCharacterUser } from "@/lib/auth";
 import { loadCharacter } from "@/lib/character";
 import { getConfig } from "@/lib/game-config";
@@ -18,7 +19,7 @@ export default async function CharacterPage() {
   const [full, inventory, activeRun] = await Promise.all([
     db.character.findUnique({ where: { id: character.id }, include: { effects: { orderBy: { sortOrder: "asc" } }, tags: { include: { tag: true } } } }),
     db.inventoryItem.findMany({ where: { characterId: character.id }, include: { item: true }, orderBy: { item: { sortOrder: "asc" } } }),
-    db.run.findFirst({ where: { characterId: character.id, status: "ACTIVE", isTest: false } }),
+    findActiveRunFor(character.id),
   ]);
   const stage = erosionStage(character.erosion, cfg);
   const need = levelUpRequirement(character.level, cfg);

@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireCharacterUser } from "@/lib/auth";
 import { formatKst } from "@/lib/time";
+import { canAccessRun } from "@/lib/party";
 import type { CheckResult, Delta, RunSummary } from "@/lib/engine/types";
 import { CHECK_TYPE_LABEL } from "@/lib/rules";
 
@@ -18,7 +19,7 @@ export default async function RecordDetailPage({ params }: { params: Promise<{ r
   const { user, character } = await requireCharacterUser();
   const run = await db.run.findUnique({ where: { id: runId }, include: { realm: true, logs: { orderBy: { seq: "asc" }, include: { node: true } }, logs2: true } });
   if (!run) notFound();
-  if (run.characterId !== character.id && user.role !== "ADMIN") redirect("/records");
+  if (!(await canAccessRun(run.id, character.id, user.role === "ADMIN"))) redirect("/records");
   if (run.status === "ACTIVE") redirect(`/explore/${run.id}`);
   const s = run.summary as RunSummary | null;
   const diary = run.logs2.find((l) => l.kind === "DIARY");

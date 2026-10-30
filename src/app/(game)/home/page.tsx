@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
+import { findActiveRunFor } from "@/lib/party";
 import { requireCharacterUser } from "@/lib/auth";
 import { loadCharacter } from "@/lib/character";
 import { getConfig } from "@/lib/game-config";
@@ -22,7 +23,7 @@ export default async function HomePage() {
   await ensureStoryEvents();
   const banners = await activeBanners();
   const [activeRun, notices, unread, invites, latest] = await Promise.all([
-    db.run.findFirst({ where: { characterId: character.id, status: "ACTIVE", isTest: false }, include: { realm: true } }),
+    findActiveRunFor(character.id),
     db.notice.findMany({ orderBy: [{ pinned: "desc" }, { createdAt: "desc" }], take: 5 }),
     unreadDmCount(character.id),
     pendingOrgInviteCount(character.id),

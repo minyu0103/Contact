@@ -17,9 +17,11 @@ type Tx = Prisma.TransactionClient | PrismaClient;
 type LootEntry = { itemId: string; qty: number };
 type RunModifier = { type: "run_check_bonus" | "run_extra_dice"; checkType: string; value: number; label: string };
 
+const charInclude = { effects: true, tags: true, inventory: { include: { item: true } }, equipment: { include: { item: true } } } satisfies Prisma.CharacterInclude;
 const runInclude = {
   realm: true,
-  character: { include: { effects: true, tags: true, inventory: { include: { item: true } }, equipment: { include: { item: true } } } },
+  character: { include: charInclude },
+  party: { include: { members: { include: { character: { include: charInclude } } } } },
 } satisfies Prisma.RunInclude;
 type RunRow = Prisma.RunGetPayload<{ include: typeof runInclude }>;
 
@@ -35,9 +37,12 @@ type Env = {
   tx: Tx;
   cfg: GameConfig;
   run: RunRow;
+  actor: RunRow["character"];      // 지금 행동하는 캐릭터 (파티 런이면 행동한 멤버, 아니면 런 주인)
   state: CharState;
   ctx: EngineCtx;
   equipMods: RunModifier[];
+  // 파티 런: 함께 있는 멤버들(JOINED)과 이번 처리에서 생긴 침식률 변화(진입 침식률은 전원에게)
+  party: { memberIds: string[]; erosionDelta: Map<string, number> } | null;
   // 가변 JSON 필드 (parsed)
   revealed: string[]; visited: string[]; flags: string[]; used: string[]; loot: LootEntry[]; modifiers: RunModifier[]; clues: { text: string; flag: string }[];
   logs: { type: string; nodeId?: string | null; choiceText?: string | null; text?: string; checkDetail?: unknown; deltas?: unknown }[];
@@ -50,11 +55,18 @@ function stateFromCharacter(c: RunRow["character"]): CharState {
   return { hp: c.hp, maxHp: c.maxHp, mp: c.mp, maxMp: c.maxMp, erosion: c.erosion, points: c.points, exp: c.exp, level: c.level, statPoints: c.statPoints, proficiency: c.proficiency, proficiencyExp: c.proficiencyExp, escapeCount: c.escapeCount, autoSuccessUsedToday: c.autoSuccessUsedToday, teleportUsedToday: c.teleportUsedToday };
 }
 
-async function loadEnv(tx: Tx, runId: string, cfg?: GameConfig): Promise<Env> {
+async function loadEnv(tx: Tx, runId: string, cfg?: GameConfig, actorId?: string): Promise<Env> {
   const run = await tx.run.findUnique({ where: { id: runId }, include: runInclude });
   if (!run) throw new EngineError("런을 찾을 수 없습니다.");
   const config = cfg ?? (await getConfig());
-  const c = run.character;
+  const joined = run.party ? run.party.members.filter((m) => m.status === "JOINED") : [];
+  let c = run.character;
+  if (run.party) {
+    const m = joined.find((x) => x.characterId === (actorId ?? run.characterId)) ?? joined[0];
+    if (!m) throw new EngineError("파티에 남은 탐사자가 없습니다.");
+    if (actorId && !joined.some((x) => x.characterId === actorId)) throw new EngineError("이 파티의 탐사자가 아닙니다.");
+    c = m.character;
+  }
   const state: CharState = run.isTest && run.testState ? (run.testState as CharState) : stateFromCharacter(c);
   const ctx: EngineCtx = {
     category: c.category,
@@ -72,7 +84,8 @@ async function loadEnv(tx: Tx, runId: string, cfg?: GameConfig): Promise<Env> {
     if (e.type === "run_extra_dice") equipMods.push({ type: "run_extra_dice", checkType: e.checkType, value: e.value, label: eq.item.name });
   }
   return {
-    tx, cfg: config, run, state, ctx, equipMods,
+    tx, cfg: config, run, actor: c, state, ctx, equipMods,
+    party: run.party ? { memberIds: joined.map((m) => m.characterId), erosionDelta: new Map() } : null,
     revealed: arr(run.revealedNodeIds), visited: arr(run.visitedNodeIds), flags: arr(run.flags), used: arr(run.usedChoiceIds), loot: arr(run.loot), modifiers: arr(run.modifiers), clues: arr(run.clues),
     logs: [], pendingInventory: new Map(),
   };
@@ -95,15 +108,18 @@ async function persist(env: Env, extra: Prisma.RunUpdateInput = {}) {
     },
   });
   if (!run.isTest) {
-    await tx.character.update({ where: { id: run.characterId }, data: { ...state } });
+    const actorId = env.actor.id;
+    await tx.character.update({ where: { id: actorId }, data: { ...state } });
     for (const [itemId, delta] of env.pendingInventory) {
       if (delta === 0) continue;
-      const inv = await tx.inventoryItem.findUnique({ where: { characterId_itemId: { characterId: run.characterId, itemId } } });
+      const inv = await tx.inventoryItem.findUnique({ where: { characterId_itemId: { characterId: actorId, itemId } } });
       const next = (inv?.qty ?? 0) + delta;
       if (next <= 0) { if (inv) await tx.inventoryItem.delete({ where: { id: inv.id } }); }
       else if (inv) await tx.inventoryItem.update({ where: { id: inv.id }, data: { qty: next } });
-      else await tx.inventoryItem.create({ data: { characterId: run.characterId, itemId, qty: next } });
+      else await tx.inventoryItem.create({ data: { characterId: actorId, itemId, qty: next } });
     }
+    if (env.party) for (const [cid, d] of env.party.erosionDelta) { if (cid !== actorId && d > 0) await tx.character.update({ where: { id: cid }, data: { erosion: { increment: d } } }); }
+    env.party?.erosionDelta.clear();
   }
   env.logs = [];
   env.pendingInventory.clear();
@@ -118,7 +134,7 @@ async function loadNode(tx: Tx, nodeId: string): Promise<NodeRow> {
 // ───────────────────────── 보조 ─────────────────────────
 
 function invQty(env: Env, itemId: string): number {
-  const inv = env.run.isTest ? 0 : (env.run.character.inventory.find((i) => i.itemId === itemId)?.qty ?? 0) + (env.pendingInventory.get(itemId) ?? 0);
+  const inv = env.run.isTest ? 0 : (env.actor.inventory.find((i) => i.itemId === itemId)?.qty ?? 0) + (env.pendingInventory.get(itemId) ?? 0);
   const loot = env.loot.find((l) => l.itemId === itemId)?.qty ?? 0;
   return inv + loot;
 }
@@ -150,7 +166,7 @@ function removeItem(env: Env, itemId: string, qty: number): number {
   const e = env.loot.find((l) => l.itemId === itemId);
   if (e) { const take = Math.min(e.qty, left); e.qty -= take; left -= take; if (e.qty === 0) env.loot = env.loot.filter((l) => l !== e); }
   if (left > 0 && !env.run.isTest) {
-    const have = (env.run.character.inventory.find((i) => i.itemId === itemId)?.qty ?? 0) + (env.pendingInventory.get(itemId) ?? 0);
+    const have = (env.actor.inventory.find((i) => i.itemId === itemId)?.qty ?? 0) + (env.pendingInventory.get(itemId) ?? 0);
     const take = Math.min(have, left);
     if (take > 0) { env.pendingInventory.set(itemId, (env.pendingInventory.get(itemId) ?? 0) - take); left -= take; }
   }
@@ -278,6 +294,11 @@ async function enterNode(env: Env, nodeId: string, fromNodeId: string | null, de
   const base = node.entryErosion ?? (cfg["erosion.entryUsesDepth"] ? node.depth : cfg["erosion.entryFixed"]);
   const g = gainErosion(env, base);
   if (g > 0) deltas.push({ label: "침식률", value: g });
+  if (env.party && g > 0) {
+    // 함께 이동하는 멤버 전원에게 진입 침식률 (각자의 정신력 배율은 서버가 알고 있는 현재 값으로)
+    const others = await env.tx.character.findMany({ where: { id: { in: env.party.memberIds.filter((id) => id !== env.actor.id) } }, select: { id: true, mp: true, maxMp: true } });
+    for (const o of others) env.party.erosionDelta.set(o.id, (env.party.erosionDelta.get(o.id) ?? 0) + applyErosionGain(base, o.mp, o.maxMp, cfg));
+  }
   // 2. 공개·방문 기록과 보수 (런 안에서 처음 들어갈 때만)
   const first = !env.visited.includes(node.id);
   if (first) {
@@ -316,7 +337,7 @@ async function endRun(env: Env, status: "ESCAPED" | "FALLEN" | "ABORTED"): Promi
   const nameOf = (id: string) => nodes.find((n) => n.id === id)?.name ?? "?";
   const items = await tx.item.findMany({ where: { id: { in: env.loot.map((l) => l.itemId) } } });
   const itemName = (id: string) => items.find((i) => i.id === id)?.name ?? "?";
-  const proficiencyBefore = run.isTest ? state.proficiency : run.character.proficiency;
+  const proficiencyBefore = run.isTest ? state.proficiency : env.actor.proficiency;
   const summary: RunSummary = { status, realmName: run.realm.name, newNodes: [], visited: env.visited.map(nameOf), reward: 0, exp: 0, levelUps: 0, gained: [], lost: [], discarded: [], clues: env.clues, proficiencyBefore, proficiencyAfter: state.proficiency, isTest: run.isTest };
 
   if (status === "ESCAPED") {
@@ -327,21 +348,37 @@ async function endRun(env: Env, status: "ESCAPED" | "FALLEN" | "ABORTED"): Promi
     if (!run.isTest) {
       // 서버 공개
       for (const id of env.revealed) await tx.node.updateMany({ where: { id, revealedAt: null }, data: { revealedAt: new Date(), revealedById: run.characterId } });
+      summary.partyMembers = env.party ? env.party.memberIds.length : undefined;
       // 인스턴트 이계 봉합
       if (env.flags.includes("__sealed") && run.realm.kind === "INSTANT" && !run.realm.isTemplate && !run.realm.sealedAt) {
         await tx.realm.update({ where: { id: run.realmId }, data: { sealedAt: new Date(), sealedById: run.characterId } });
         summary.sealed = true; summary.sealReward = cfg["instant.sealReward"]; summary.reward += cfg["instant.sealReward"];
       }
-      state.points += summary.reward;
-      state.escapeCount += 1;
-      // 보관함으로 옮기기 (칸 수 제한)
-      const inv = await tx.inventoryItem.findMany({ where: { characterId: run.characterId } });
-      let slots = inv.length;
-      for (const l of env.loot) {
-        const existing = inv.find((i) => i.itemId === l.itemId);
-        if (existing) await tx.inventoryItem.update({ where: { id: existing.id }, data: { qty: existing.qty + l.qty } });
-        else if (slots < cfg["char.inventorySlots"]) { await tx.inventoryItem.create({ data: { characterId: run.characterId, itemId: l.itemId, qty: l.qty } }); slots++; }
-        else summary.discarded.push({ name: itemName(l.itemId), qty: l.qty });
+      if (env.party) {
+        // 파티: 보수·탈출 횟수·침식률 감소는 전원, 획득물은 멤버에게 순서대로 분배
+        const members = env.party.memberIds;
+        await tx.character.updateMany({ where: { id: { in: members } }, data: { points: { increment: summary.reward }, escapeCount: { increment: 1 } } });
+        for (const cid of members) { const ch = await tx.character.findUnique({ where: { id: cid }, select: { erosion: true } }); if (ch) await tx.character.update({ where: { id: cid }, data: { erosion: Math.max(0, ch.erosion - cfg["coop.erosionReduce"]) } }); }
+        summary.coopErosionReduce = cfg["coop.erosionReduce"];
+        const units: string[] = []; for (const l of env.loot) for (let i = 0; i < l.qty; i++) units.push(l.itemId);
+        for (let i = 0; i < units.length; i++) {
+          const cid = members[i % members.length];
+          try { await giveTo(tx, cid, units[i], 1, cfg["char.inventorySlots"]); } catch { summary.discarded.push({ name: itemName(units[i]), qty: 1 }); }
+        }
+        // 행동자의 메모리 상태를 서버 값과 맞춘다 (persist가 덮어쓰지 않도록)
+        const me = await tx.character.findUnique({ where: { id: env.actor.id } });
+        if (me) { state.points = me.points; state.escapeCount = me.escapeCount; state.erosion = me.erosion; }
+      } else {
+        state.points += summary.reward;
+        state.escapeCount += 1;
+        const inv = await tx.inventoryItem.findMany({ where: { characterId: run.characterId } });
+        let slots = inv.length;
+        for (const l of env.loot) {
+          const existing = inv.find((i) => i.itemId === l.itemId);
+          if (existing) await tx.inventoryItem.update({ where: { id: existing.id }, data: { qty: existing.qty + l.qty } });
+          else if (slots < cfg["char.inventorySlots"]) { await tx.inventoryItem.create({ data: { characterId: run.characterId, itemId: l.itemId, qty: l.qty } }); slots++; }
+          else summary.discarded.push({ name: itemName(l.itemId), qty: l.qty });
+        }
       }
     }
   } else if (status === "FALLEN") {
@@ -357,30 +394,49 @@ async function endRun(env: Env, status: "ESCAPED" | "FALLEN" | "ABORTED"): Promi
     state.hp = Math.min(state.maxHp, cfg["fallen.returnHp"]);
     state.mp = Math.min(state.maxMp, cfg["fallen.returnMp"]);
     if (!run.isTest) {
-      const inv = await tx.inventoryItem.findMany({ where: { characterId: run.characterId } });
-      let slots = inv.length;
-      for (const l of env.loot) {
-        const existing = inv.find((i) => i.itemId === l.itemId);
-        if (existing) await tx.inventoryItem.update({ where: { id: existing.id }, data: { qty: existing.qty + l.qty } });
-        else if (slots < cfg["char.inventorySlots"]) { await tx.inventoryItem.create({ data: { characterId: run.characterId, itemId: l.itemId, qty: l.qty } }); slots++; }
-        else summary.discarded.push({ name: itemName(l.itemId), qty: l.qty });
-      }
+      for (const l of env.loot) { try { await giveTo(tx, env.actor.id, l.itemId, l.qty, cfg["char.inventorySlots"]); } catch { summary.discarded.push({ name: itemName(l.itemId), qty: l.qty }); } }
     }
   }
   // 경험치와 레벨업 (강제 종료는 없음)
   if (status !== "ABORTED") {
-    state.exp += summary.exp;
-    let need = levelUpRequirement(state.level, cfg);
-    while (state.exp >= need) { state.exp -= need; state.level += 1; state.statPoints += cfg["char.statPointPerLevel"]; summary.levelUps += 1; need = levelUpRequirement(state.level, cfg); }
+    if (env.party && !run.isTest) {
+      for (const cid of env.party.memberIds) {
+        const ch = await tx.character.findUnique({ where: { id: cid } });
+        if (!ch) continue;
+        const r = applyExp({ exp: ch.exp, level: ch.level, statPoints: ch.statPoints }, summary.exp, cfg);
+        await tx.character.update({ where: { id: cid }, data: { exp: r.exp, level: r.level, statPoints: r.statPoints } });
+        if (cid === env.actor.id) { state.exp = r.exp; state.level = r.level; state.statPoints = r.statPoints; summary.levelUps = r.levelUps; }
+      }
+    } else {
+      const r = applyExp(state, summary.exp, cfg);
+      state.exp = r.exp; state.level = r.level; state.statPoints = r.statPoints; summary.levelUps = r.levelUps;
+    }
   }
   env.logs.push({ type: "end", nodeId: run.currentNodeId, text: status === "ESCAPED" ? "탈출에 성공했다." : status === "FALLEN" ? "쓰러졌다." : "강제 종료되었다.", deltas: [{ label: "보수", value: summary.reward }, { label: "경험치", value: summary.exp }] });
   await persist(env, { status, endedAt: new Date(), summary: summary as unknown as Prisma.InputJsonValue, lastResult: Prisma.DbNull, lostLoot: summary.lost as unknown as Prisma.InputJsonValue });
+  if (run.partyId) await tx.party.update({ where: { id: run.partyId }, data: { status: "ENDED" } });
   return summary;
+}
+
+function applyExp(c: { exp: number; level: number; statPoints: number }, gain: number, cfg: GameConfig) {
+  let { exp, level, statPoints } = c; let levelUps = 0;
+  exp += gain;
+  let need = levelUpRequirement(level, cfg);
+  while (exp >= need) { exp -= need; level += 1; statPoints += cfg["char.statPointPerLevel"]; levelUps += 1; need = levelUpRequirement(level, cfg); }
+  return { exp, level, statPoints, levelUps };
+}
+
+async function giveTo(tx: Tx, characterId: string, itemId: string, qty: number, slots: number) {
+  const inv = await tx.inventoryItem.findUnique({ where: { characterId_itemId: { characterId, itemId } } });
+  if (inv) return tx.inventoryItem.update({ where: { id: inv.id }, data: { qty: inv.qty + qty } });
+  const count = await tx.inventoryItem.count({ where: { characterId } });
+  if (count >= slots) throw new EngineError("보관함 가득 참");
+  return tx.inventoryItem.create({ data: { characterId, itemId, qty } });
 }
 
 // ───────────────────────── 공개 API ─────────────────────────
 
-export async function startRun(characterId: string, realmId: string, opts: { isTest?: boolean; forceResult?: "SUCCESS" | "FAIL" | null } = {}): Promise<string> {
+export async function startRun(characterId: string, realmId: string, opts: { isTest?: boolean; forceResult?: "SUCCESS" | "FAIL" | null; partyId?: string } = {}): Promise<string> {
   const cfg = await getConfig();
   return db.$transaction(async (tx) => {
     const character = await tx.character.findUnique({ where: { id: characterId } });
@@ -400,10 +456,23 @@ export async function startRun(characterId: string, realmId: string, opts: { isT
       if (erosionStage(character.erosion, cfg) === "DANGER") throw new EngineError("침식률이 위험 단계입니다. 이계 입장이 차단되었습니다.");
       if (character.abilityStatus !== "ACTIVE" && !cfg["ability.allowExploreWhilePending"]) throw new EngineError("능력 심사가 끝나야 탐사할 수 있습니다.");
       await tx.character.update({ where: { id: characterId }, data: { ap: { decrement: 1 } } });
+      if (opts.partyId) {
+        const party = await tx.party.findUnique({ where: { id: opts.partyId }, include: { members: { where: { status: "JOINED" }, include: { character: true } } } });
+        if (!party || party.leaderId !== characterId || party.status !== "FORMING" || party.realmId !== realmId) throw new EngineError("출발할 수 없는 파티입니다.");
+        for (const m of party.members) {
+          if (m.characterId === characterId) continue;
+          const c = m.character;
+          if (await tx.run.findFirst({ where: { characterId: c.id, status: "ACTIVE", isTest: false } })) throw new EngineError(`${c.name}이(가) 다른 탐사 중입니다.`);
+          if (c.ap <= 0) throw new EngineError(`${c.name}의 행동력이 없습니다.`);
+          if (erosionStage(c.erosion, cfg) === "DANGER") throw new EngineError(`${c.name}의 침식률이 위험 단계입니다.`);
+          await tx.character.update({ where: { id: c.id }, data: { ap: { decrement: 1 } } });
+        }
+        await tx.party.update({ where: { id: party.id }, data: { status: "ACTIVE" } });
+      }
     }
     const inv = await tx.inventoryItem.findMany({ where: { characterId }, include: { item: true } });
     const hadCamera = inv.some((i) => (i.item.effects as ItemEffect[]).some((e) => e.type === "camera"));
-    const created = await tx.run.create({ data: { characterId, realmId, isTest, hadCamera, forceResult: opts.forceResult ?? null, testState: isTest ? (stateFromCharacter(character as RunRow["character"]) as unknown as Prisma.InputJsonValue) : undefined } });
+    const created = await tx.run.create({ data: { characterId, realmId, isTest, hadCamera, partyId: opts.partyId ?? null, forceResult: opts.forceResult ?? null, testState: isTest ? (stateFromCharacter(character as RunRow["character"]) as unknown as Prisma.InputJsonValue) : undefined } });
     const env = await loadEnv(tx, created.id, cfg);
     const deltas: Delta[] = [];
     await enterNode(env, realm.startNodeId, null, deltas);
@@ -415,10 +484,10 @@ export async function startRun(characterId: string, realmId: string, opts: { isT
 export type ActionResult = { ended?: boolean };
 
 /** 현재 장면의 선택지를 고른다 */
-export async function chooseAction(runId: string, choiceId: string, useAuto: boolean): Promise<ActionResult> {
+export async function chooseAction(runId: string, choiceId: string, useAuto: boolean, actorId?: string): Promise<ActionResult> {
   const cfg = await getConfig();
   return db.$transaction(async (tx) => {
-    const env = await loadEnv(tx, runId, cfg);
+    const env = await loadEnv(tx, runId, cfg, actorId);
     const { run } = env;
     if (run.status !== "ACTIVE" || !run.currentNodeId) throw new EngineError("진행 중인 런이 아닙니다.");
     const node = await loadNode(tx, run.currentNodeId);
@@ -449,6 +518,17 @@ export async function chooseAction(runId: string, choiceId: string, useAuto: boo
 async function finishAction(env: Env, node: NodeRow, inEvent: boolean, nav: Nav, result: LastResult): Promise<ActionResult> {
   const { run } = env;
   if (checkFallen(env)) {
+    if (env.party && env.party.memberIds.length > 1) {
+      // 파티원 한 명이 쓰러짐: 본인만 이탈(체력·정신력 귀환값, 경험치 절반), 런은 계속
+      const { cfg, state, tx } = env;
+      state.hp = Math.min(state.maxHp, cfg["fallen.returnHp"]); state.mp = Math.min(state.maxMp, cfg["fallen.returnMp"]);
+      const r = applyExp(state, Math.floor(run.exp * cfg["exp.fallenRatio"]), cfg); state.exp = r.exp; state.level = r.level; state.statPoints = r.statPoints;
+      await tx.partyMember.update({ where: { partyId_characterId: { partyId: run.partyId!, characterId: env.actor.id } }, data: { status: "FALLEN" } });
+      env.logs.push({ type: "system", nodeId: run.currentNodeId, text: `${env.actor.name}이(가) 쓰러져 이계 밖으로 튕겨 나갔다.`, deltas: [] });
+      if (inEvent) run.currentSceneId = node.scenes.find((s) => s.kind === "BASE")?.id ?? run.currentSceneId;
+      await persist(env, { lastResult: { kind: "info", title: "쓰러짐", check: null, text: "의식을 잃었다. 정신을 차리니 이계 밖이었다. 파티는 탐사를 계속한다.", deltas: [] } as unknown as Prisma.InputJsonValue });
+      return { ended: true };
+    }
     await endRun(env, "FALLEN");
     return { ended: true };
   }
@@ -472,10 +552,10 @@ async function finishAction(env: Env, node: NodeRow, inEvent: boolean, nav: Nav,
 }
 
 /** 연결을 따라 이동한다 */
-export async function moveAction(runId: string, edgeId: string): Promise<ActionResult> {
+export async function moveAction(runId: string, edgeId: string, actorId?: string): Promise<ActionResult> {
   const cfg = await getConfig();
   return db.$transaction(async (tx) => {
-    const env = await loadEnv(tx, runId, cfg);
+    const env = await loadEnv(tx, runId, cfg, actorId);
     const { run } = env;
     if (run.status !== "ACTIVE" || !run.currentNodeId) throw new EngineError("진행 중인 런이 아닙니다.");
     const node = await loadNode(tx, run.currentNodeId);
@@ -505,10 +585,10 @@ export async function moveAction(runId: string, edgeId: string): Promise<ActionR
 }
 
 /** 출구 노드에서 탈출 */
-export async function escapeAction(runId: string): Promise<ActionResult> {
+export async function escapeAction(runId: string, actorId?: string): Promise<ActionResult> {
   const cfg = await getConfig();
   return db.$transaction(async (tx) => {
-    const env = await loadEnv(tx, runId, cfg);
+    const env = await loadEnv(tx, runId, cfg, actorId);
     const { run } = env;
     if (run.status !== "ACTIVE" || !run.currentNodeId) throw new EngineError("진행 중인 런이 아닙니다.");
     const node = await loadNode(tx, run.currentNodeId);
@@ -521,10 +601,10 @@ export async function escapeAction(runId: string): Promise<ActionResult> {
 }
 
 /** 선택지 없는 이벤트 장면을 넘긴다 */
-export async function continueAction(runId: string): Promise<ActionResult> {
+export async function continueAction(runId: string, actorId?: string): Promise<ActionResult> {
   const cfg = await getConfig();
   return db.$transaction(async (tx) => {
-    const env = await loadEnv(tx, runId, cfg);
+    const env = await loadEnv(tx, runId, cfg, actorId);
     const { run } = env;
     if (run.status !== "ACTIVE" || !run.currentNodeId) throw new EngineError("진행 중인 런이 아닙니다.");
     const node = await loadNode(tx, run.currentNodeId);
@@ -540,10 +620,10 @@ export async function ackResultAction(runId: string) {
 }
 
 /** 공간 이동 능력 */
-export async function teleportAction(runId: string, nodeId: string): Promise<ActionResult> {
+export async function teleportAction(runId: string, nodeId: string, actorId?: string): Promise<ActionResult> {
   const cfg = await getConfig();
   return db.$transaction(async (tx) => {
-    const env = await loadEnv(tx, runId, cfg);
+    const env = await loadEnv(tx, runId, cfg, actorId);
     const { run } = env;
     if (run.status !== "ACTIVE" || !run.currentNodeId) throw new EngineError("진행 중인 런이 아닙니다.");
     if (teleportRemaining(env) <= 0) throw new EngineError("오늘 공간 이동 횟수를 다 썼습니다.");
@@ -561,10 +641,10 @@ export async function teleportAction(runId: string, nodeId: string): Promise<Act
 }
 
 /** 런 중 소모품 사용 */
-export async function consumeItemInRun(runId: string, itemId: string): Promise<ActionResult> {
+export async function consumeItemInRun(runId: string, itemId: string, actorId?: string): Promise<ActionResult> {
   const cfg = await getConfig();
   return db.$transaction(async (tx) => {
-    const env = await loadEnv(tx, runId, cfg);
+    const env = await loadEnv(tx, runId, cfg, actorId);
     const { run } = env;
     if (run.status !== "ACTIVE" || !run.currentNodeId) throw new EngineError("진행 중인 런이 아닙니다.");
     const item = await tx.item.findUnique({ where: { id: itemId } });
@@ -623,10 +703,10 @@ export async function consumeItemOutside(characterId: string, itemId: string): P
 }
 
 /** 이번 런 획득 아이템 버리기 */
-export async function discardLootAction(runId: string, itemId: string) {
+export async function discardLootAction(runId: string, itemId: string, actorId?: string) {
   const cfg = await getConfig();
   await db.$transaction(async (tx) => {
-    const env = await loadEnv(tx, runId, cfg);
+    const env = await loadEnv(tx, runId, cfg, actorId);
     if (env.run.status !== "ACTIVE") throw new EngineError("진행 중인 런이 아닙니다.");
     const e = env.loot.find((l) => l.itemId === itemId);
     if (!e) return;
@@ -674,11 +754,13 @@ export type RunView = {
   minimap: { nodes: MiniNode[]; edges: MiniEdge[] };
   hadCamera: boolean;
   memos: { id: string; title: string; body: string; author: string; reactions: number }[];
+  party: { members: { id: string; name: string; hp: number; maxHp: number; mp: number; maxMp: number; erosion: number; status: string; isLeader: boolean }[] } | null;
+  actorName: string;
 };
 
-export async function getRunView(runId: string): Promise<RunView> {
+export async function getRunView(runId: string, viewerId?: string): Promise<RunView> {
   const cfg = await getConfig();
-  const env = await loadEnv(db, runId, cfg);
+  const env = await loadEnv(db, runId, cfg, viewerId);
   const { run, state } = env;
   const [nodes, edges, revealedBy] = await Promise.all([
     db.node.findMany({ where: { realmId: run.realmId } }),
@@ -716,7 +798,7 @@ export async function getRunView(runId: string): Promise<RunView> {
   const lootView = env.loot.map((l) => ({ itemId: l.itemId, name: names.items.get(l.itemId) ?? "?", qty: l.qty }));
   const usable: RunView["usableItems"] = [];
   const canUse = (it: typeof items[number]) => it.usableIn !== "OUTSIDE" && it.category !== "EQUIPMENT" && it.category !== "FACTOR" && (it.effects as ItemEffect[]).some((e) => e.type !== "narrative" && e.type !== "camera" && e.type !== "extractor");
-  if (!run.isTest) for (const inv of run.character.inventory) { const it = items.find((i) => i.id === inv.itemId); if (it && canUse(it)) usable.push({ itemId: it.id, name: it.name, qty: inv.qty, description: it.description, fromLoot: false }); }
+  if (!run.isTest) for (const inv of env.actor.inventory) { const it = items.find((i) => i.id === inv.itemId); if (it && canUse(it)) usable.push({ itemId: it.id, name: it.name, qty: inv.qty, description: it.description, fromLoot: false }); }
   for (const l of env.loot) { const it = items.find((i) => i.id === l.itemId); if (it && canUse(it)) usable.push({ itemId: it.id, name: it.name, qty: l.qty, description: it.description, fromLoot: true }); }
 
   const knownIds = new Set(nodes.filter((n) => known(n.id)).map((n) => n.id));
@@ -745,5 +827,7 @@ export async function getRunView(runId: string): Promise<RunView> {
     minimap,
     hadCamera: run.hadCamera,
     memos,
+    party: run.party ? { members: run.party.members.map((m) => ({ id: m.characterId, name: m.character.name, hp: m.character.hp, maxHp: m.character.maxHp, mp: m.character.mp, maxMp: m.character.maxMp, erosion: m.character.erosion, status: m.status, isLeader: m.characterId === run.party!.leaderId })) } : null,
+    actorName: env.actor.name,
   };
 }

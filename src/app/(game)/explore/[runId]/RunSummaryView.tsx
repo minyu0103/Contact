@@ -26,6 +26,7 @@ export function RunSummaryView({ view }: { view: RunView }) {
             <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
               <dt className="hud-label self-center">새로 밝힌 구역</dt><dd>{s.newNodes.length ? s.newNodes.join(", ") : "-"}</dd>
               <dt className="hud-label self-center">방문한 구역</dt><dd className="text-fg-dim">{s.visited.join(" → ")}</dd>
+              {s.partyMembers && (<><dt className="hud-label self-center">공동 탐사</dt><dd><span className="tag tag-accent">{s.partyMembers}명 전원 보수·경험치 지급 · 침식률 −{s.coopErosionReduce}</span></dd></>)}
               {s.sealed && (<><dt className="hud-label self-center">봉합</dt><dd><span className="tag tag-accent">이계 봉합 성공 · 봉합 보수 {s.sealReward}P 포함</span></dd></>)}
               <dt className="hud-label self-center">보수</dt><dd className="mono text-warn">{s.reward} P</dd>
               <dt className="hud-label self-center">경험치</dt><dd className="mono">+{s.exp}{s.levelUps > 0 && <span className="tag tag-accent ml-2">레벨 업 ×{s.levelUps}</span>}</dd>
