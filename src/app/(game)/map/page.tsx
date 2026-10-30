@@ -5,12 +5,14 @@ import { getConfig } from "@/lib/game-config";
 import { erosionStage } from "@/lib/rules";
 import { MapClient } from "./MapClient";
 import { ensureInstantSpawns } from "@/lib/instant";
+import { ensureStoryEvents } from "@/lib/story";
 
 export default async function MapPage() {
   const { character } = await requireCharacterUser();
   const cfg = await getConfig();
   const stage = erosionStage(character.erosion, cfg);
   await ensureInstantSpawns();
+  await ensureStoryEvents();
   const realms = await db.realm.findMany({ where: { isPublished: true, isTemplate: false, sealedAt: null, OR: [{ kind: { not: "SPECIAL" } }, { applicantId: null }, { applicantId: character.id }] }, orderBy: { createdAt: "asc" }, include: { _count: { select: { nodes: true } }, nodes: { where: { revealedAt: { not: null } }, select: { id: true } } } });
   const markers = realms.map((r) => ({ id: r.id, x: r.mapX, y: r.mapY, label: r.name, progress: r._count.nodes ? Math.round((r.nodes.length / r._count.nodes) * 100) : 0, active: r.kind === "INSTANT" }));
   const activeRun = await db.run.findFirst({ where: { characterId: character.id, status: "ACTIVE", isTest: false } });

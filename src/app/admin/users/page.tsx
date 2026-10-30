@@ -27,7 +27,7 @@ export default async function UsersPage() {
               return (
                 <tr key={c.id}>
                   <td><Link href={`/admin/users/${c.id}`} className="font-semibold hover:text-accent">{c.name}</Link></td>
-                  <td className="text-xs text-fg-dim">{c.user.loginId}{c.user.role === "ADMIN" && <span className="tag tag-warn ml-1">관리자</span>}</td>
+                  <td className="text-xs text-fg-dim">{c.user.loginId}{c.user.role === "ADMIN" && <span className="tag tag-warn ml-1">관리자</span>}{c.isNpc && <span className="tag ml-1">NPC</span>}</td>
                   <td className="text-xs">{CATEGORY_LABEL[c.category]}</td>
                   <td className="text-xs"><span className={`tag ${ABILITY_TAG[c.abilityStatus]}`}>{ABILITY_LABEL[c.abilityStatus]}</span> {c.abilityName}</td>
                   <td className="mono">{c.level}</td>

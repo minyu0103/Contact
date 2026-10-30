@@ -8,11 +8,11 @@ import { formatKst } from "@/lib/time";
 export default async function AdminDashboard() {
   const cfg = await getConfig();
   const [pending, danger, realms, activeRuns, userCount] = await Promise.all([
-    db.character.findMany({ where: { abilityStatus: "PENDING" }, orderBy: { createdAt: "asc" }, take: 10 }),
-    db.character.findMany({ where: { erosion: { gte: cfg["erosion.dangerFrom"] } }, orderBy: { erosion: "desc" } }),
+    db.character.findMany({ where: { abilityStatus: "PENDING", isNpc: false }, orderBy: { createdAt: "asc" }, take: 10 }),
+    db.character.findMany({ where: { erosion: { gte: cfg["erosion.dangerFrom"] }, isNpc: false }, orderBy: { erosion: "desc" } }),
     db.realm.findMany({ include: { _count: { select: { nodes: true } }, nodes: { where: { revealedAt: { not: null } }, select: { id: true } } }, orderBy: { createdAt: "asc" } }),
     db.run.findMany({ where: { status: "ACTIVE" }, include: { character: true, realm: true }, orderBy: { startedAt: "desc" } }),
-    db.character.count(),
+    db.character.count({ where: { isNpc: false } }),
   ]);
 
   return (

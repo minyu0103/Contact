@@ -8,7 +8,7 @@ import { logoutAction } from "@/app/(auth)/actions";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await requireAdmin();
-  const [cfg, pending] = await Promise.all([getConfig(), db.character.count({ where: { abilityStatus: "PENDING" } })]);
+  const [cfg, pending] = await Promise.all([getConfig(), db.character.count({ where: { abilityStatus: "PENDING", isNpc: false } })]);
   return (
     <div className="min-h-dvh">
       <header className="sticky top-0 z-30 border-b border-warn/30 bg-bg/90 backdrop-blur-md">

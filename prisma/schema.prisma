@@ -116,6 +116,8 @@ model Character {
   lastDailyResetKey    String @default("") // "YYYY-MM-DD" (KST 기준 게임일)
   // 오늘 침식률 감소로 인정된 RP 댓글 수 (2차)
   rpCountToday         Int    @default(0)
+  // 위장 NPC (관리자가 만들어 조작하는 캐릭터)
+  isNpc                Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -854,4 +856,37 @@ model SpecialApplication {
   reviewedAt     DateTime?
 
   @@index([status, createdAt])
+}
+
+
+// ───────────────────────── 스토리 연출 (2차) ─────────────────────────
+
+enum StoryConditionType {
+  REALM_PROGRESS   // 특정 이계의 서버 공개 진행도 ≥ n%
+  SERVER_ESCAPES   // 서버 전체 탈출 성공 횟수 ≥ n
+  DATE             // 지정한 시각 이후
+  MANUAL           // 운영자가 직접 발동
+}
+
+model StoryEvent {
+  id             String             @id @default(cuid())
+  title          String
+  // 발동 시 공지로 올라가는 본문
+  body           String             @default("")
+  // 홈 상단 연출 문구와 표시 기간
+  bannerText     String             @default("")
+  bannerDays     Int                @default(3)
+  conditionType  StoryConditionType @default(MANUAL)
+  realmId        String?
+  threshold      Int                @default(50)
+  triggerAt      DateTime?
+  // 발동 효과
+  rewardPoints   Int                @default(0)
+  rewardItemId   String?
+  rewardQty      Int                @default(1)
+  publishRealmId String?
+  isActive       Boolean            @default(true)
+  firedAt        DateTime?
+  sortOrder      Int                @default(0)
+  createdAt      DateTime           @default(now())
 }

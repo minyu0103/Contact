@@ -7,6 +7,7 @@ import { CATEGORY_LABEL, EROSION_STAGE_LABEL, erosionStage, levelUpRequirement }
 import { formatKst } from "@/lib/time";
 import { logoutAction } from "@/app/(auth)/actions";
 import { pendingOrgInviteCount, unreadDmCount } from "@/lib/community";
+import { activeBanners, ensureStoryEvents } from "@/lib/story";
 
 const ABILITY_STATUS = {
   PENDING: { label: "심사 중", cls: "tag-warn", note: "운영자가 능력 서술을 검토하고 있습니다. 심사 중에도 탐사는 가능합니다." },
@@ -18,6 +19,8 @@ export default async function HomePage() {
   const { character: raw } = await requireCharacterUser();
   const cfg = await getConfig();
   const character = (await loadCharacter(raw.id, cfg)) ?? raw;
+  await ensureStoryEvents();
+  const banners = await activeBanners();
   const [activeRun, notices, unread, invites, latest] = await Promise.all([
     db.run.findFirst({ where: { characterId: character.id, status: "ACTIVE", isTest: false }, include: { realm: true } }),
     db.notice.findMany({ orderBy: [{ pinned: "desc" }, { createdAt: "desc" }], take: 5 }),
@@ -31,6 +34,12 @@ export default async function HomePage() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-3">
+      {banners.map((b) => (
+        <div key={b.id} className="relative overflow-hidden border border-erosion/50 bg-erosion/8 px-5 py-4 lg:col-span-3">
+          <p className="hud-label mb-1 text-erosion">프로그램 긴급 알림</p>
+          <p className="text-base leading-relaxed">{b.bannerText}</p>
+        </div>
+      ))}
       <section className="panel lg:col-span-3">
         <div className="panel-title">운영자 공지<span className="code">NOTICE</span></div>
         <ul className="divide-y divide-line">

@@ -32,7 +32,7 @@ function Gauge({ value, max, color }: { value: number; max: number; color: strin
 }
 
 /** 모든 게임 화면 위쪽에 늘 보이는 상태 표시줄 */
-export function StatusBar({ character, cfg, isAdmin }: { character: Character; cfg: GameConfig; isAdmin: boolean }) {
+export function StatusBar({ character, cfg, isAdmin, npcReturn }: { character: Character; cfg: GameConfig; isAdmin: boolean; npcReturn?: React.ReactNode }) {
   const stage = erosionStage(character.erosion, cfg);
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-bg/90 backdrop-blur-md">
@@ -50,6 +50,7 @@ export function StatusBar({ character, cfg, isAdmin }: { character: Character; c
           <span className="text-sm font-semibold">{character.name}</span>
         </Link>
         {isAdmin && <Link href="/admin" className="tag tag-warn hover:bg-warn/15">관리자</Link>}
+        {npcReturn}
         <div className="flex w-full flex-wrap items-center gap-x-5 gap-y-1.5 text-xs sm:w-auto">
           <Stat label="체력">
             <Gauge value={character.hp} max={character.maxHp} color="var(--hp)" />
