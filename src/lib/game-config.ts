@@ -2,6 +2,7 @@
 // 관리자 페이지의 "게임 설정" 메뉴는 이 목록을 그대로 양식으로 보여 주고, 값은 Setting 테이블에 저장한다.
 // 코드 어디에서도 수치를 직접 쓰지 않고 getConfig()를 통해 읽는다.
 
+import { cache } from "react";
 import { db } from "./db";
 
 export type SettingDef = {
@@ -117,15 +118,15 @@ export const DEFAULT_CONFIG = Object.fromEntries(SETTING_DEFS.map((d) => [d.key,
 
 export const SETTING_GROUPS = Array.from(new Set(SETTING_DEFS.map((d) => d.group)));
 
-/** DB 저장값을 기본값 위에 덮어 쓴 설정 전체. 요청마다 한 번 읽는다. */
-export async function getConfig(): Promise<GameConfig> {
+/** DB 저장값을 기본값 위에 덮어 쓴 설정 전체. 한 요청 안에서는 한 번만 읽는다. */
+export const getConfig = cache(async (): Promise<GameConfig> => {
   const rows = await db.setting.findMany();
   const cfg: Record<string, unknown> = { ...DEFAULT_CONFIG };
   for (const row of rows) {
     if (row.key in cfg) cfg[row.key] = row.value;
   }
   return cfg as GameConfig;
-}
+});
 
 export function coerceSettingValue(def: SettingDef, raw: string | null): number | string | boolean {
   if (def.type === "boolean") return raw === "on" || raw === "true";
