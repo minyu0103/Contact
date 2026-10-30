@@ -12,6 +12,7 @@ const ITEMS = [
   { href: "/admin/community", label: "커뮤니티" },
   { href: "/admin/logs", label: "로그 심사" },
   { href: "/admin/archive", label: "도감" },
+  { href: "/admin/craft", label: "생산" },
   { href: "/admin/abilities", label: "능력 심사" },
   { href: "/admin/tags", label: "능력 태그" },
   { href: "/admin/invites", label: "초대 코드" },

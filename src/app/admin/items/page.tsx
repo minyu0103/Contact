@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { ITEM_CATEGORY_OPTIONS, describeItemEffect, type ItemEffect } from "@/lib/content-types";
 
 export default async function ItemsPage() {
-  const items = await db.item.findMany({ orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }], include: { _count: { select: { inventory: true, dropEntries: true } } } });
+  const items = await db.item.findMany({ where: { isCrafted: false }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }], include: { _count: { select: { inventory: true, dropEntries: true } } } });
   const catLabel = (v: string) => ITEM_CATEGORY_OPTIONS.find((o) => o.value === v)?.label ?? v;
   return (
     <div>

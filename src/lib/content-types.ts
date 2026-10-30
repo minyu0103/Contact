@@ -32,7 +32,8 @@ export const ITEM_CATEGORY_OPTIONS = [
   { value: "INFECTED", label: "감염물" },
   { value: "MATERIAL", label: "재료" },
   { value: "KEY", label: "중요 물품" },
-  { value: "EQUIPMENT", label: "장비 (2차)" },
+  { value: "EQUIPMENT", label: "장비" },
+  { value: "FACTOR", label: "인자" },
 ] as const;
 
 export const USABLE_IN_OPTIONS = [
@@ -51,16 +52,18 @@ export type ItemEffect =
   | { type: "run_extra_dice"; checkType: CheckTarget; value: number }
   | { type: "escape" }
   | { type: "camera" }
+  | { type: "extractor" }
   | { type: "narrative"; text: string };
 
 export const ITEM_EFFECT_DEFS: { type: ItemEffect["type"]; label: string; fields: ("value" | "checkType" | "text")[]; help?: string }[] = [
   { type: "hp", label: "체력 ±n", fields: ["value"] },
   { type: "mp", label: "정신력 ±n", fields: ["value"] },
   { type: "erosion", label: "침식률 ±n", fields: ["value"], help: "음수면 감소. 양수면 정신력 배율이 적용됨" },
-  { type: "run_check_bonus", label: "이번 런 판정 보정", fields: ["checkType", "value"] },
-  { type: "run_extra_dice", label: "이번 런 다이스 추가", fields: ["checkType", "value"], help: "추가 개수" },
+  { type: "run_check_bonus", label: "판정 보정 (소모품: 이번 런 / 장비: 착용 중)", fields: ["checkType", "value"] },
+  { type: "run_extra_dice", label: "다이스 추가 (소모품: 이번 런 / 장비: 착용 중)", fields: ["checkType", "value"], help: "추가 개수" },
   { type: "escape", label: "즉시 탈출", fields: [] },
   { type: "camera", label: "이계용 비디오 카메라", fields: [], help: "지니고 입장한 런은 카메라 로그를 쓸 수 있음 (소모되지 않음)" },
+  { type: "extractor", label: "인자 추출 도구", fields: [], help: "지니면 감염물에서 인자를 추출할 수 있음 (소모되지 않음)" },
   { type: "narrative", label: "서술 전용", fields: ["text"], help: "시스템 효과 없이 설명만" },
 ];
 
@@ -75,6 +78,7 @@ export function describeItemEffect(e: ItemEffect): string {
     case "run_extra_dice": return `이번 런 ${ct(e.checkType)} 다이스 +${e.value}`;
     case "escape": return "즉시 탈출";
     case "camera": return "카메라 로그 작성 가능";
+    case "extractor": return "인자 추출 가능";
     case "narrative": return e.text || "서술 전용";
   }
 }

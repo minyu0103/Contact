@@ -44,7 +44,7 @@ export async function sellItemAction(_prev: FormState, formData: FormData): Prom
     if (!item || item.sellPrice <= 0) return { error: "프로그램이 회수하지 않는 물품입니다." };
     if (!inv || inv.qty < qty) return { error: "보유 수량이 부족합니다." };
     const gain = item.sellPrice * qty;
-    if (inv.qty === qty) await tx.inventoryItem.delete({ where: { id: inv.id } }); else await tx.inventoryItem.update({ where: { id: inv.id }, data: { qty: { decrement: qty } } });
+    if (inv.qty === qty) { await tx.inventoryItem.delete({ where: { id: inv.id } }); await tx.equippedItem.deleteMany({ where: { characterId: character.id, itemId } }); } else await tx.inventoryItem.update({ where: { id: inv.id }, data: { qty: { decrement: qty } } });
     await tx.character.update({ where: { id: character.id }, data: { points: { increment: gain } } });
     await audit(user.id, "shop.sell", { type: "character", id: character.id }, { item: item.name, qty, gain });
     return { success: `${item.name} ×${qty} 회수. +${gain}P` };

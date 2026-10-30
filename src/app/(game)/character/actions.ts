@@ -85,5 +85,6 @@ export async function discardItemAction(formData: FormData) {
   const { character } = await requireCharacterUser();
   const itemId = String(formData.get("itemId") ?? "");
   await db.inventoryItem.deleteMany({ where: { characterId: character.id, itemId } });
+  await db.equippedItem.deleteMany({ where: { characterId: character.id, itemId } });
   revalidatePath("/character");
 }

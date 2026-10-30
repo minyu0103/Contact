@@ -134,6 +134,7 @@ model Character {
   orgMember    OrgMember?
   orgInvites   OrgInvite[]
   explorationLogs ExplorationLog[]
+  equipment    EquippedItem[]
 }
 
 enum AbilityEffectType {
@@ -316,6 +317,7 @@ enum ItemCategory {
   MATERIAL    // 재료
   KEY         // 중요 물품
   EQUIPMENT   // 장비 (2차)
+  FACTOR      // 현실조작인자 (2차, 추출로 생성)
 }
 
 enum UsableIn {
@@ -339,11 +341,50 @@ model Item {
   minEscapes  Int          @default(0)
   sellPrice   Int          @default(0) // 회수가. 0이면 판매 불가
   sortOrder   Int          @default(0)
+  // 생산 (2차): 감염물의 이계 특성 태그 / 인자의 특성 태그
+  traitTag    String       @default("")
+  // 조합으로 만들어진 장비 (상점·편집 목록에서 숨김)
+  isCrafted   Boolean      @default(false)
+  crafterId   String?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
   dropEntries DropEntry[]
   inventory   InventoryItem[]
+  equipped    EquippedItem[]
+  recipesBase   Recipe[] @relation("RecipeBase")
+  recipesResult Recipe[] @relation("RecipeResult")
+}
+
+// ───────────────────────── 생산 (2차) ─────────────────────────
+
+model EquippedItem {
+  characterId String
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  slot        Int
+  itemId      String
+  item        Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@id([characterId, slot])
+}
+
+/** 이계 특성 태그: 인자에 붙으며, 조합된 장비에 보너스 효과를 더한다 */
+model FactorTrait {
+  id           String @id @default(cuid())
+  tag          String @unique
+  description  String @default("")
+  bonusEffects Json   @default("[]")
+}
+
+model Recipe {
+  id           String @id @default(cuid())
+  name         String
+  baseItemId   String
+  baseItem     Item   @relation("RecipeBase", fields: [baseItemId], references: [id], onDelete: Cascade)
+  resultItemId String
+  resultItem   Item   @relation("RecipeResult", fields: [resultItemId], references: [id], onDelete: Cascade)
+  checkTarget  Int    @default(7)
+  sortOrder    Int    @default(0)
 }
 
 model DropTable {

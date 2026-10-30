@@ -19,7 +19,7 @@ type RunModifier = { type: "run_check_bonus" | "run_extra_dice"; checkType: stri
 
 const runInclude = {
   realm: true,
-  character: { include: { effects: true, tags: true, inventory: { include: { item: true } } } },
+  character: { include: { effects: true, tags: true, inventory: { include: { item: true } }, equipment: { include: { item: true } } } },
 } satisfies Prisma.RunInclude;
 type RunRow = Prisma.RunGetPayload<{ include: typeof runInclude }>;
 
@@ -37,6 +37,7 @@ type Env = {
   run: RunRow;
   state: CharState;
   ctx: EngineCtx;
+  equipMods: RunModifier[];
   // 가변 JSON 필드 (parsed)
   revealed: string[]; visited: string[]; flags: string[]; used: string[]; loot: LootEntry[]; modifiers: RunModifier[]; clues: { text: string; flag: string }[];
   logs: { type: string; nodeId?: string | null; choiceText?: string | null; text?: string; checkDetail?: unknown; deltas?: unknown }[];
@@ -64,8 +65,14 @@ async function loadEnv(tx: Tx, runId: string, cfg?: GameConfig): Promise<Env> {
     stage: erosionStage(state.erosion, config),
   };
   const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
+  // 착용 장비의 상시 보정 (런 보정과 같은 형식, 저장하지 않음)
+  const equipMods: RunModifier[] = [];
+  for (const eq of c.equipment) for (const e of eq.item.effects as ItemEffect[]) {
+    if (e.type === "run_check_bonus") equipMods.push({ type: "run_check_bonus", checkType: e.checkType, value: e.value, label: eq.item.name });
+    if (e.type === "run_extra_dice") equipMods.push({ type: "run_extra_dice", checkType: e.checkType, value: e.value, label: eq.item.name });
+  }
   return {
-    tx, cfg: config, run, state, ctx,
+    tx, cfg: config, run, state, ctx, equipMods,
     revealed: arr(run.revealedNodeIds), visited: arr(run.visitedNodeIds), flags: arr(run.flags), used: arr(run.usedChoiceIds), loot: arr(run.loot), modifiers: arr(run.modifiers), clues: arr(run.clues),
     logs: [], pendingInventory: new Map(),
   };
@@ -178,7 +185,7 @@ function resolveCheck(env: Env, checkType: CheckType, target: number, useAuto: b
       if (e.type === "CHECK_BONUS" && matchesCheck(e.checkType, checkType, own) && e.value !== 0) modifiers.push({ label: "능력 효과", value: e.value });
     }
   }
-  for (const m of env.modifiers) {
+  for (const m of [...env.modifiers, ...env.equipMods]) {
     if (m.type === "run_check_bonus" && matchesCheck(m.checkType, checkType, own) && m.value !== 0) modifiers.push({ label: m.label, value: m.value });
   }
   if (own === checkType && erosionStage(state.erosion, cfg) === "ACTIVE") modifiers.push({ label: "침식률 활성", value: cfg["erosion.activeBonus"] });
@@ -187,7 +194,7 @@ function resolveCheck(env: Env, checkType: CheckType, target: number, useAuto: b
 
   let extra = 0;
   if (ctx.abilityActive) for (const e of ctx.effects) if (e.type === "EXTRA_DICE" && matchesCheck(e.checkType, checkType, own)) extra += e.value;
-  for (const m of env.modifiers) if (m.type === "run_extra_dice" && matchesCheck(m.checkType, checkType, own)) extra += m.value;
+  for (const m of [...env.modifiers, ...env.equipMods]) if (m.type === "run_extra_dice" && matchesCheck(m.checkType, checkType, own)) extra += m.value;
 
   const count = cfg["check.diceCount"];
   const dice = rollDice(count + Math.max(0, extra), cfg["check.diceSides"]);
@@ -564,7 +571,8 @@ export async function consumeItemInRun(runId: string, itemId: string): Promise<A
     if (item.usableIn === "OUTSIDE") throw new EngineError("런 중에는 쓸 수 없는 아이템입니다.");
     if (invQty(env, itemId) <= 0) throw new EngineError("가지고 있지 않은 아이템입니다.");
     const effects = item.effects as ItemEffect[];
-    if (effects.length === 0 || effects.every((e) => e.type === "narrative" || e.type === "camera")) throw new EngineError("사용 효과가 없는 아이템입니다.");
+    if (item.category === "EQUIPMENT" || item.category === "FACTOR") throw new EngineError("장비와 인자는 사용할 수 없습니다. 유저 화면에서 착용하거나 조합하세요.");
+    if (effects.length === 0 || effects.every((e) => e.type === "narrative" || e.type === "camera" || e.type === "extractor")) throw new EngineError("사용 효과가 없는 아이템입니다.");
     removeItem(env, itemId, 1);
     const deltas: Delta[] = [];
     const nav: Nav = {};
@@ -576,7 +584,7 @@ export async function consumeItemInRun(runId: string, itemId: string): Promise<A
         case "run_check_bonus": env.modifiers.push({ type: "run_check_bonus", checkType: e.checkType, value: e.value, label: item.name }); deltas.push({ label: "이번 런 판정", text: `${item.name} ${e.value >= 0 ? "+" : ""}${e.value}` }); break;
         case "run_extra_dice": env.modifiers.push({ type: "run_extra_dice", checkType: e.checkType, value: e.value, label: item.name }); deltas.push({ label: "이번 런 다이스", text: `${item.name} +${e.value}` }); break;
         case "escape": nav.escape = true; break;
-        case "narrative": case "camera": break;
+        case "narrative": case "camera": case "extractor": break;
       }
     }
     const node = await loadNode(tx, run.currentNodeId);
@@ -682,7 +690,7 @@ export async function getRunView(runId: string): Promise<RunView> {
   const currentId = run.currentNodeId ?? run.realm.startNodeId ?? nodes[0]?.id;
   const node = currentId ? await loadNode(db, currentId) : null;
   const cctx = conditionCtx(env);
-  const [items, tags] = await Promise.all([db.item.findMany({ select: { id: true, name: true, description: true, usableIn: true, effects: true } }), db.abilityTag.findMany()]);
+  const [items, tags] = await Promise.all([db.item.findMany({ select: { id: true, name: true, description: true, usableIn: true, effects: true, category: true } }), db.abilityTag.findMany()]);
   const names = { items: new Map(items.map((i) => [i.id, i.name])), tags: new Map(tags.map((t) => [t.id, t.name])) };
   const { describeCondition } = await import("./conditions");
 
@@ -706,7 +714,7 @@ export async function getRunView(runId: string): Promise<RunView> {
 
   const lootView = env.loot.map((l) => ({ itemId: l.itemId, name: names.items.get(l.itemId) ?? "?", qty: l.qty }));
   const usable: RunView["usableItems"] = [];
-  const canUse = (it: typeof items[number]) => it.usableIn !== "OUTSIDE" && (it.effects as ItemEffect[]).some((e) => e.type !== "narrative" && e.type !== "camera");
+  const canUse = (it: typeof items[number]) => it.usableIn !== "OUTSIDE" && it.category !== "EQUIPMENT" && it.category !== "FACTOR" && (it.effects as ItemEffect[]).some((e) => e.type !== "narrative" && e.type !== "camera" && e.type !== "extractor");
   if (!run.isTest) for (const inv of run.character.inventory) { const it = items.find((i) => i.id === inv.itemId); if (it && canUse(it)) usable.push({ itemId: it.id, name: it.name, qty: inv.qty, description: it.description, fromLoot: false }); }
   for (const l of env.loot) { const it = items.find((i) => i.id === l.itemId); if (it && canUse(it)) usable.push({ itemId: it.id, name: it.name, qty: l.qty, description: it.description, fromLoot: true }); }
 

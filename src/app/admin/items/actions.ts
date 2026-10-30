@@ -19,13 +19,15 @@ const effectSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("run_extra_dice"), checkType: checkTarget, value: z.number().int().min(1) }),
   z.object({ type: z.literal("escape") }),
   z.object({ type: z.literal("camera") }),
+  z.object({ type: z.literal("extractor") }),
   z.object({ type: z.literal("narrative"), text: z.string().max(200) }),
 ]);
 
 const schema = z.object({
   name: z.string().trim().min(1, "이름을 입력하세요.").max(40),
   description: z.string().trim().max(1000),
-  category: z.enum(["CONSUMABLE", "INFECTED", "MATERIAL", "KEY", "EQUIPMENT"]),
+  category: z.enum(["CONSUMABLE", "INFECTED", "MATERIAL", "KEY", "EQUIPMENT", "FACTOR"]),
+  traitTag: z.string().trim().max(30),
   usableIn: z.enum(["BOTH", "RUN", "OUTSIDE"]),
   stackLimit: z.coerce.number().int().min(1).max(9999),
   shopEnabled: z.boolean(),
@@ -52,6 +54,7 @@ function parseForm(formData: FormData) {
     minEscapes: formData.get("minEscapes"),
     sellPrice: formData.get("sellPrice"),
     sortOrder: formData.get("sortOrder") ?? 0,
+    traitTag: formData.get("traitTag") ?? "",
     effects,
   });
 }

@@ -32,6 +32,7 @@ export function ItemForm({ item }: { item: Item | null }) {
                 </select></div>
               <div className="field"><label htmlFor="stackLimit">겹치기 (한 칸에 몇 개)</label><input id="stackLimit" name="stackLimit" type="number" min={1} className="input mono" defaultValue={item?.stackLimit ?? 99} /></div>
               <div className="field"><label htmlFor="sortOrder">정렬 순서</label><input id="sortOrder" name="sortOrder" type="number" className="input mono" defaultValue={item?.sortOrder ?? 0} /></div>
+              <div className="field col-span-2"><label htmlFor="traitTag">이계 특성 태그 (감염물·인자용)</label><input id="traitTag" name="traitTag" className="input" defaultValue={item?.traitTag ?? ""} maxLength={30} placeholder="예: 역류하는 시간" /><p className="help">감염물에 붙이면 추출된 인자가 이 태그를 가집니다. 태그별 보너스는 생산 메뉴에서 정합니다.</p></div>
             </div>
             <div className="field">
               <label htmlFor="image">이미지</label>

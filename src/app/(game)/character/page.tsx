@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireCharacterUser } from "@/lib/auth";
 import { loadCharacter } from "@/lib/character";
@@ -24,7 +25,8 @@ export default async function CharacterPage() {
   const own = proficiencyCheckTypeFor(character.category, character.proficiencyCheckType);
   const st = ABILITY_LABEL[character.abilityStatus];
   const catLabel = (v: string) => ITEM_CATEGORY_OPTIONS.find((o) => o.value === v)?.label ?? v;
-  const canUse = (it: typeof inventory[number]["item"]) => it.usableIn !== "RUN" && (it.effects as ItemEffect[]).some((e) => e.type === "hp" || e.type === "mp" || e.type === "erosion");
+  const canUse = (it: typeof inventory[number]["item"]) => it.usableIn !== "RUN" && it.category !== "EQUIPMENT" && it.category !== "FACTOR" && (it.effects as ItemEffect[]).some((e) => e.type === "hp" || e.type === "mp" || e.type === "erosion");
+  const equipped = await db.equippedItem.findMany({ where: { characterId: character.id }, include: { item: true } });
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -89,6 +91,11 @@ export default async function CharacterPage() {
       <section className="panel lg:col-span-2">
         <div className="panel-title">보관함<span className="code">{inventory.length} / {cfg["char.inventorySlots"]}칸</span></div>
         <div className="p-4">
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+            <span className="hud-label">장비</span>
+            {equipped.length === 0 ? <span className="help">착용 중인 장비 없음</span> : equipped.map((e) => <span key={e.slot} className="tag tag-accent">{e.slot}: {e.item.name}</span>)}
+            <Link href="/craft" className="btn btn-sm ml-auto">생산 작업대 (장비 · 추출 · 조합)</Link>
+          </div>
           {activeRun && <p className="help mb-3">탐사 중입니다. 소모품은 탐사 화면에서 사용하세요.</p>}
           <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {inventory.length === 0 && <li className="help">비어 있음</li>}

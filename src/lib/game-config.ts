@@ -87,6 +87,12 @@ export const SETTING_DEFS = [
   { key: "instant.sealReward", label: "봉합 보수 (P)", group: "인스턴트 이계", type: "number", default: 100, min: 0 },
   { key: "instant.autoSpawn", label: "자동 생성 켜기", group: "인스턴트 이계", type: "boolean", default: true, help: "끄면 운영자가 '지금 생성'으로만 만든다" },
 
+  // 생산 (2차)
+  { key: "craft.equipSlots", label: "장비 슬롯 수", group: "생산", type: "number", default: 2, min: 1, max: 6 },
+  { key: "craft.extractChance", label: "인자 추출 성공률 (%)", group: "생산", type: "number", default: 70, min: 0, max: 100 },
+  { key: "craft.productionExtractBonus", label: "생산형 추출 성공률 보너스 (%p)", group: "생산", type: "number", default: 20, min: 0, max: 100 },
+  { key: "craft.productionMaxFactors", label: "생산형이 섞을 수 있는 인자 수", group: "생산", type: "number", default: 2, min: 1, max: 4 },
+
   // 능력
   { key: "ability.allowExploreWhilePending", label: "능력 심사 중에도 탐사 가능", group: "능력", type: "boolean", default: true },
 ] as const satisfies readonly SettingDef[];
