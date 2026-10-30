@@ -90,7 +90,7 @@ export default async function RealmEditorPage({ params, searchParams }: { params
                     <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="isPublished" defaultChecked={realm.isPublished} className="accent-[var(--accent)]" /> 공개 ({realm.kind === "INSTANT" ? "템플릿이면 자동 생성 대상이 됨" : "유저의 세계 지도에 표시"})</label>
                     <div className="grid grid-cols-3 gap-3">
                       <div className="field"><label htmlFor="r-kind">종류</label>
-                        <select id="r-kind" name="kind" className="select" defaultValue={realm.kind === "INSTANT" ? "INSTANT" : "FIXED"} disabled={!!realm.templateId}><option value="FIXED">고정 이계</option><option value="INSTANT">인스턴트 템플릿</option></select></div>
+                        {realm.kind === "SPECIAL" ? <input className="input" value="특수형 (신청 이계)" disabled /> : <select id="r-kind" name="kind" className="select" defaultValue={realm.kind === "INSTANT" ? "INSTANT" : "FIXED"} disabled={!!realm.templateId}><option value="FIXED">고정 이계</option><option value="INSTANT">인스턴트 템플릿</option></select>}</div>
                       <div className="field"><label htmlFor="r-int">생성 주기 (시간)</label><input id="r-int" name="spawnIntervalHours" type="number" min={1} max={720} className="input mono" defaultValue={realm.spawnIntervalHours} /></div>
                       <div className="field"><label htmlFor="r-max">동시 존재 수</label><input id="r-max" name="maxConcurrent" type="number" min={1} max={20} className="input mono" defaultValue={realm.maxConcurrent} /></div>
                     </div>

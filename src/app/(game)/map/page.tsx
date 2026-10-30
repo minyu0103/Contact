@@ -11,7 +11,7 @@ export default async function MapPage() {
   const cfg = await getConfig();
   const stage = erosionStage(character.erosion, cfg);
   await ensureInstantSpawns();
-  const realms = await db.realm.findMany({ where: { isPublished: true, isTemplate: false, sealedAt: null }, orderBy: { createdAt: "asc" }, include: { _count: { select: { nodes: true } }, nodes: { where: { revealedAt: { not: null } }, select: { id: true } } } });
+  const realms = await db.realm.findMany({ where: { isPublished: true, isTemplate: false, sealedAt: null, OR: [{ kind: { not: "SPECIAL" } }, { applicantId: null }, { applicantId: character.id }] }, orderBy: { createdAt: "asc" }, include: { _count: { select: { nodes: true } }, nodes: { where: { revealedAt: { not: null } }, select: { id: true } } } });
   const markers = realms.map((r) => ({ id: r.id, x: r.mapX, y: r.mapY, label: r.name, progress: r._count.nodes ? Math.round((r.nodes.length / r._count.nodes) * 100) : 0, active: r.kind === "INSTANT" }));
   const activeRun = await db.run.findFirst({ where: { characterId: character.id, status: "ACTIVE", isTest: false } });
   return (
@@ -22,6 +22,7 @@ export default async function MapPage() {
         <div className="panel-title">세계 지도 · 이계 신호<span className="code">{realms.length} DETECTED</span></div>
         <div className="p-2"><MapClient markers={markers} /></div>
       </section>
+      <p className="text-sm"><Link href="/map/special" className="btn btn-sm">특수형 이계 신청 · 보고서</Link></p>
       <section className="panel">
         <div className="panel-title">감지된 이계</div>
         <ul className="divide-y divide-line">
@@ -31,7 +32,7 @@ export default async function MapPage() {
             return (
               <li key={r.id} className="flex items-center gap-4 px-4 py-3">
                 <div className="min-w-0 flex-1">
-                  <Link href={`/map/${r.id}`} className="font-semibold hover:text-accent">{r.name}</Link>{r.kind === "INSTANT" && <span className="tag tag-warn ml-2">인스턴트 · 봉합 가능</span>}
+                  <Link href={`/map/${r.id}`} className="font-semibold hover:text-accent">{r.name}</Link>{r.kind === "INSTANT" && <span className="tag tag-warn ml-2">인스턴트 · 봉합 가능</span>}{r.kind === "SPECIAL" && <span className="tag tag-accent ml-2">{r.applicantId ? "특수형 · 신청자 전용" : "특수형 · 정식 공략 루트"}</span>}
                   <p className="help line-clamp-1">{r.intro}</p>
                   <div className="mt-1.5 flex items-center gap-2"><div className="gauge w-40"><div style={{ width: `${pct}%`, background: "var(--accent)" }} /></div><span className="mono text-xs text-fg-dim">탐사 진행도 {pct}%</span></div>
                 </div>

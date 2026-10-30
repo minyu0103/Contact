@@ -14,6 +14,7 @@ const ITEMS = [
   { href: "/admin/archive", label: "도감" },
   { href: "/admin/craft", label: "생산" },
   { href: "/admin/trade", label: "거래·경매" },
+  { href: "/admin/special", label: "특수형 이계" },
   { href: "/admin/abilities", label: "능력 심사" },
   { href: "/admin/tags", label: "능력 태그" },
   { href: "/admin/invites", label: "초대 코드" },

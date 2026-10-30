@@ -96,6 +96,10 @@ export const SETTING_DEFS = [
   // 거래 (2차)
   { key: "trade.maxOpenListings", label: "한 사람이 동시에 올릴 수 있는 거래 글", group: "거래", type: "number", default: 5, min: 1 },
 
+  // 특수형 이계 (2차)
+  { key: "special.maxPending", label: "한 사람의 동시 심사 중 신청 수", group: "특수형 이계", type: "number", default: 1, min: 1 },
+  { key: "special.defaultReward", label: "승인 시 기본 보수 (P, 심사 화면 기본값)", group: "특수형 이계", type: "number", default: 300, min: 0 },
+
   // 능력
   { key: "ability.allowExploreWhilePending", label: "능력 심사 중에도 탐사 가능", group: "능력", type: "boolean", default: true },
 ] as const satisfies readonly SettingDef[];

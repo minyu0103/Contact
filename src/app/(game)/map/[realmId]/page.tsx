@@ -14,6 +14,7 @@ export default async function RealmInfoPage({ params }: { params: Promise<{ real
   const cfg = await getConfig();
   const realm = await db.realm.findUnique({ where: { id: realmId }, include: { nodes: { include: { revealedBy: { select: { name: true } } } }, edges: true } });
   if (!realm || !realm.isPublished || realm.isTemplate) notFound();
+  if (realm.kind === "SPECIAL" && realm.applicantId && realm.applicantId !== character.id) notFound();
   const sealed = !!realm.sealedAt;
   const stage = erosionStage(character.erosion, cfg);
   const activeRun = await db.run.findFirst({ where: { characterId: character.id, status: "ACTIVE", isTest: false } });

@@ -45,7 +45,8 @@ export async function saveRealmInfoAction(_prev: FormState, formData: FormData):
   if (!node) return { error: "시작 노드가 이 이계의 노드가 아닙니다." };
   const current = await db.realm.findUnique({ where: { id } });
   if (current?.templateId) return { error: "인스턴스는 기본 정보를 바꿀 수 없습니다. 템플릿을 고치세요." };
-  await db.realm.update({ where: { id }, data: { ...parsed.data, isTemplate: parsed.data.kind === "INSTANT" } });
+  const kind = current?.kind === "SPECIAL" ? "SPECIAL" : parsed.data.kind; // 특수형은 종류를 바꾸지 않는다
+  await db.realm.update({ where: { id }, data: { ...parsed.data, kind, isTemplate: kind === "INSTANT" } });
   await audit(admin.id, "realm.update", { type: "realm", id }, { name: parsed.data.name, isPublished: parsed.data.isPublished });
   revalidatePath(`/admin/realms/${id}`);
   revalidatePath("/map");

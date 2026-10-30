@@ -394,6 +394,7 @@ export async function startRun(characterId: string, realmId: string, opts: { isT
       if (!realm.isPublished) throw new EngineError("아직 공개되지 않은 이계입니다.");
       if (realm.isTemplate) throw new EngineError("템플릿 이계에는 직접 들어갈 수 없습니다.");
       if (realm.sealedAt) throw new EngineError("이미 봉합된 이계입니다.");
+      if (realm.kind === "SPECIAL" && realm.applicantId && realm.applicantId !== characterId) throw new EngineError("이 이계는 신청자만 들어갈 수 있습니다.");
       if (await tx.run.findFirst({ where: { characterId, status: "ACTIVE", isTest: false } })) throw new EngineError("진행 중인 탐사가 있습니다. 먼저 끝내세요.");
       if (character.ap <= 0) throw new EngineError("행동력이 없습니다. 04:00에 초기화됩니다.");
       if (erosionStage(character.erosion, cfg) === "DANGER") throw new EngineError("침식률이 위험 단계입니다. 이계 입장이 차단되었습니다.");

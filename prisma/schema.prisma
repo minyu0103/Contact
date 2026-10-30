@@ -139,6 +139,7 @@ model Character {
   tradesTaken    TradeListing[] @relation("TradeCounterparty")
   auctionsWon    Auction[]      @relation("AuctionWinner")
   bids           Bid[]
+  specialApplications SpecialApplication[]
 }
 
 enum AbilityEffectType {
@@ -209,6 +210,9 @@ model Realm {
   lastSpawnAt        DateTime?
   sealedAt           DateTime?
   sealedById         String?
+  // 특수형 이계 (2차): 신청자만 입장. null이면 모두 입장 가능(정식 공략 루트)
+  applicantId        String?
+  specialApplication SpecialApplication?
 
   nodes Node[]
   edges Edge[]
@@ -581,6 +585,7 @@ enum PostKind {
   ORG       // 조직 게시판
   LOG       // 탐사 로그에 딸린 댓글·공감용
   TRADE     // 거래 게시글에 딸린 댓글(흥정)용
+  REPORT    // 특수형 이계 보고서에 딸린 댓글·공감용
 }
 
 model Post {
@@ -599,6 +604,7 @@ model Post {
   reactions   Reaction[]
   log         ExplorationLog?
   trade       TradeListing?
+  report      SpecialApplication?
 
   @@index([kind, createdAt])
   @@index([orgId, createdAt])
@@ -815,4 +821,37 @@ model Bid {
   createdAt   DateTime  @default(now())
 
   @@index([auctionId, amount])
+}
+
+
+// ───────────────────────── 특수형 이계 (2차) ─────────────────────────
+
+enum SpecialStatus {
+  PENDING   // 심사 중
+  APPROVED  // 승인 (이계 생성됨)
+  REJECTED  // 반려
+}
+
+model SpecialApplication {
+  id             String        @id @default(cuid())
+  characterId    String
+  character      Character     @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  status         SpecialStatus @default(PENDING)
+  title          String
+  atmosphere     String        // 이계의 분위기
+  master         String        // 주인의 설정
+  anomalies      String        // 내부 이상현상
+  extra          String        @default("")
+  adminComment   String        @default("")
+  rewardPaid     Int           @default(0)
+  isReportPublic Boolean       @default(false)
+  isWinner       Boolean       @default(false)
+  realmId        String?       @unique
+  realm          Realm?        @relation(fields: [realmId], references: [id], onDelete: SetNull)
+  postId         String        @unique
+  post           Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+  reviewedAt     DateTime?
+
+  @@index([status, createdAt])
 }
